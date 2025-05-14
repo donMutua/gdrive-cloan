@@ -1,8 +1,11 @@
 "use client";
 
-import type React from "react";
-
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import {
+  DndContext,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { FileCard } from "@/components/file-system/file-card";
@@ -16,6 +19,8 @@ import type { FileType, FolderType } from "@/types/file-system";
 import { generateDummyFiles, generateDummyFolders } from "@/lib/dummy-data";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FileUploadDialog } from "@/components/file-system/file-upload-dialog";
+import { MoveToFolderDialog } from "@/components/file-system/move-to-folder-dialog";
 
 export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -42,9 +47,10 @@ export default function Dashboard() {
   const [breadcrumbs, setBreadcrumbs] = useState<
     { id: string | null; name: string }[]
   >([{ id: null, name: "My Drive" }]);
-
-  // Create a ref for the file input
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+  const [itemToMove, setItemToMove] = useState<string | null>(null);
+  const [isFileUploadDialogOpen, setIsFileUploadDialogOpen] = useState(false);
+  const [, setActiveId] = useState<string | null>(null);
 
   // Load dummy data
   useEffect(() => {
@@ -170,16 +176,9 @@ export default function Dashboard() {
     setFolders([...folders, newFolder]);
   };
 
-  // Handle file upload - directly trigger file input
-  const handleUploadFile = () => {
-    fileInputRef.current?.click();
-  };
-
-  // Handle file selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-
+  // Handle file upload
+  const handleFilesUpload = (files: File[]) => {
+    const newFiles = files.map((file) => {
       // Determine file type
       let fileType: FileType["type"] = "other";
       const fileName = file.name.toLowerCase();
@@ -214,8 +213,8 @@ export default function Dashboard() {
         url = "/abstract-geometric-shapes.png";
       }
 
-      const newFile: FileType = {
-        id: `file-${Date.now()}`,
+      return {
+        id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         name: file.name,
         type: fileType,
         size: `${(file.size / 1024).toFixed(2)} KB`,
@@ -224,163 +223,215 @@ export default function Dashboard() {
         modifiedAt: new Date().toISOString(),
         parentId: currentFolder,
       };
+    });
 
-      setFiles([...files, newFile]);
+    setFiles([...files, ...newFiles]);
+  };
 
-      // Reset the file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+  // Handle moving files to folders
+  const handleMoveToFolder = (targetFolderId: string | null) => {
+    if (!itemToMove) return;
+
+    setFiles(
+      files.map((file) =>
+        file.id === itemToMove ? { ...file, parentId: targetFolderId } : file
+      )
+    );
+
+    setIsMoveDialogOpen(false);
+    setItemToMove(null);
+  };
+
+  // DnD event handlers
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    setActiveId(null);
+
+    if (over && active.id !== over.id) {
+      const overId = over.id as string;
+      // Extract the folder ID from the droppable ID (format: folder-{id})
+      const targetFolderId = overId.startsWith("folder-")
+        ? overId.substring(7)
+        : null;
+
+      if (targetFolderId) {
+        // Move the file to the target folder
+        setFiles(
+          files.map((file) =>
+            file.id === active.id ? { ...file, parentId: targetFolderId } : file
+          )
+        );
       }
     }
   };
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Hidden file input */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        className="hidden"
-      />
+    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <div className="flex h-screen bg-background">
+        {/* Sidebar - hidden on mobile */}
+        <div
+          className={`fixed inset-y-0 left-0 z-50 transform ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          } md:relative md:translate-x-0 transition-transform duration-200 ease-in-out md:block`}
+        >
+          <Sidebar
+            onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
+            onUploadFile={() => setIsFileUploadDialogOpen(true)}
+          />
+        </div>
 
-      {/* Sidebar - hidden on mobile */}
-      <div
-        className={`fixed inset-y-0 left-0 z-50 transform ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:relative md:translate-x-0 transition-transform duration-200 ease-in-out md:block`}
-      >
-        <Sidebar
-          onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
-          onUploadFile={handleUploadFile}
-        />
-      </div>
+        {/* Main content */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Topbar
+            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            onViewChange={setView}
+            currentView={view}
+            onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
+            onUploadFile={() => setIsFileUploadDialogOpen(true)}
+          />
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Topbar
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          onViewChange={setView}
-          currentView={view}
-          onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
-          onUploadFile={handleUploadFile}
-        />
-
-        <main className="flex-1 overflow-y-auto p-4">
-          {/* Breadcrumbs */}
-          <div className="flex items-center space-x-2 overflow-x-auto pb-4">
-            {breadcrumbs.map((crumb, index) => (
-              <div key={index} className="flex items-center">
-                {index > 0 && (
-                  <ChevronRight className="h-4 w-4 mx-1 text-muted-foreground" />
-                )}
-                <Button
-                  variant="ghost"
-                  className="h-8 px-2"
-                  onClick={() => handleBreadcrumbClick(index)}
-                >
-                  {crumb.name}
-                </Button>
+          <div className="flex-1 overflow-y-auto">
+            <main className="p-4">
+              {/* Breadcrumbs */}
+              <div className="flex items-center space-x-2 overflow-x-auto pb-4">
+                {breadcrumbs.map((crumb, index) => (
+                  <div key={index} className="flex items-center">
+                    {index > 0 && (
+                      <ChevronRight className="h-4 w-4 mx-1 text-muted-foreground" />
+                    )}
+                    <Button
+                      variant="ghost"
+                      className="h-8 px-2"
+                      onClick={() => handleBreadcrumbClick(index)}
+                    >
+                      {crumb.name}
+                    </Button>
+                  </div>
+                ))}
               </div>
-            ))}
+
+              {/* Empty state */}
+              {isEmpty && (
+                <EmptyState
+                  onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
+                  onUploadFile={() => setIsFileUploadDialogOpen(true)}
+                />
+              )}
+
+              {/* Folders */}
+              {filteredFolders.length > 0 && (
+                <div className="mb-8">
+                  <h2 className="text-lg font-medium mb-4">Folders</h2>
+                  <div
+                    className={
+                      view === "grid"
+                        ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+                        : "space-y-1"
+                    }
+                  >
+                    {filteredFolders.map((folder) => (
+                      <FolderCard
+                        key={folder.id}
+                        folder={folder}
+                        view={view}
+                        onOpen={handleOpenFolder}
+                        onDelete={(id) => handleDeleteClick(id, "folder")}
+                        onRename={(id) => handleRenameClick(id, "folder")}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Files */}
+              {filteredFiles.length > 0 && (
+                <div>
+                  <h2 className="text-lg font-medium mb-4">Files</h2>
+                  <div
+                    className={
+                      view === "grid"
+                        ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+                        : "space-y-1"
+                    }
+                  >
+                    {filteredFiles.map((file) => (
+                      <FileCard
+                        key={file.id}
+                        file={file}
+                        view={view}
+                        onPreview={handleFilePreview}
+                        onDelete={(id) => handleDeleteClick(id, "file")}
+                        onRename={(id) => handleRenameClick(id, "file")}
+                        onMove={(id) => {
+                          setItemToMove(id);
+                          setIsMoveDialogOpen(true);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </main>
           </div>
+        </div>
 
-          {/* Empty state */}
-          {isEmpty && (
-            <EmptyState
-              onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
-              onUploadFile={handleUploadFile}
-            />
-          )}
+        {/* Modals */}
+        <FilePreviewModal
+          file={selectedFile}
+          isOpen={isFilePreviewOpen}
+          onClose={() => setIsFilePreviewOpen(false)}
+          onDelete={(id) => {
+            setIsFilePreviewOpen(false);
+            handleDeleteClick(id, "file");
+          }}
+          onRename={(id) => {
+            setIsFilePreviewOpen(false);
+            handleRenameClick(id, "file");
+          }}
+        />
 
-          {/* Folders */}
-          {filteredFolders.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-lg font-medium mb-4">Folders</h2>
-              <div
-                className={
-                  view === "grid"
-                    ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
-                    : "space-y-1"
-                }
-              >
-                {filteredFolders.map((folder) => (
-                  <FolderCard
-                    key={folder.id}
-                    folder={folder}
-                    view={view}
-                    onOpen={handleOpenFolder}
-                    onDelete={(id) => handleDeleteClick(id, "folder")}
-                    onRename={(id) => handleRenameClick(id, "folder")}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+        <RenameDialog
+          isOpen={isRenameDialogOpen}
+          onClose={() => setIsRenameDialogOpen(false)}
+          onRename={handleRename}
+          currentName={itemToRename?.name || ""}
+          itemType={itemToRename?.type || "file"}
+        />
 
-          {/* Files */}
-          {filteredFiles.length > 0 && (
-            <div>
-              <h2 className="text-lg font-medium mb-4">Files</h2>
-              <div
-                className={
-                  view === "grid"
-                    ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
-                    : "space-y-1"
-                }
-              >
-                {filteredFiles.map((file) => (
-                  <FileCard
-                    key={file.id}
-                    file={file}
-                    view={view}
-                    onPreview={handleFilePreview}
-                    onDelete={(id) => handleDeleteClick(id, "file")}
-                    onRename={(id) => handleRenameClick(id, "file")}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </main>
+        <CreateFolderDialog
+          isOpen={isCreateFolderDialogOpen}
+          onClose={() => setIsCreateFolderDialogOpen(false)}
+          onCreate={handleCreateFolder}
+        />
+
+        <DeleteDialog
+          isOpen={isDeleteDialogOpen}
+          onClose={() => setIsDeleteDialogOpen(false)}
+          onConfirm={handleDelete}
+          itemName={itemToDelete?.name || ""}
+          itemType={itemToDelete?.type || "file"}
+        />
+
+        <FileUploadDialog
+          isOpen={isFileUploadDialogOpen}
+          onClose={() => setIsFileUploadDialogOpen(false)}
+          onUpload={handleFilesUpload}
+          currentFolderId={currentFolder}
+        />
+
+        <MoveToFolderDialog
+          isOpen={isMoveDialogOpen}
+          onClose={() => setIsMoveDialogOpen(false)}
+          onMove={handleMoveToFolder}
+          folders={folders}
+          currentFolderId={currentFolder}
+        />
       </div>
-
-      {/* Modals */}
-      <FilePreviewModal
-        file={selectedFile}
-        isOpen={isFilePreviewOpen}
-        onClose={() => setIsFilePreviewOpen(false)}
-        onDelete={(id) => {
-          setIsFilePreviewOpen(false);
-          handleDeleteClick(id, "file");
-        }}
-        onRename={(id) => {
-          setIsFilePreviewOpen(false);
-          handleRenameClick(id, "file");
-        }}
-      />
-
-      <RenameDialog
-        isOpen={isRenameDialogOpen}
-        onClose={() => setIsRenameDialogOpen(false)}
-        onRename={handleRename}
-        currentName={itemToRename?.name || ""}
-        itemType={itemToRename?.type || "file"}
-      />
-
-      <CreateFolderDialog
-        isOpen={isCreateFolderDialogOpen}
-        onClose={() => setIsCreateFolderDialogOpen(false)}
-        onCreate={handleCreateFolder}
-      />
-
-      <DeleteDialog
-        isOpen={isDeleteDialogOpen}
-        onClose={() => setIsDeleteDialogOpen(false)}
-        onConfirm={handleDelete}
-        itemName={itemToDelete?.name || ""}
-        itemType={itemToDelete?.type || "file"}
-      />
-    </div>
+    </DndContext>
   );
 }

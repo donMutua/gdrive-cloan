@@ -1,5 +1,6 @@
 "use client";
 
+import { useDroppable } from "@dnd-kit/core";
 import { MoreVertical, Pencil, Trash2, Copy } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -27,14 +28,35 @@ export function FolderCard({
   onDelete,
   onRename,
 }: FolderCardProps) {
+  // Setup droppable with dnd-kit
+  const { isOver, setNodeRef } = useDroppable({
+    id: `folder-${folder.id}`,
+    data: {
+      type: "folder",
+      folder,
+    },
+  });
+
   if (view === "grid") {
     return (
       <div
-        className="bg-card border rounded-md overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
+        ref={setNodeRef}
+        className={`bg-card border rounded-md overflow-hidden hover:shadow-md transition-shadow cursor-pointer group relative ${
+          isOver ? "ring-2 ring-primary bg-primary/5 scale-105" : ""
+        }`}
         onClick={() => onOpen(folder.id)}
       >
-        <div className="flex items-center justify-center h-32 bg-muted rounded-t-md">
-          <FolderIcon className="w-20 h-20" />
+        <div className="flex items-center justify-center h-32 bg-muted rounded-t-md relative">
+          <FolderIcon
+            className={`w-20 h-20 transition-transform ${isOver ? "scale-110 folder-open-animation" : ""}`}
+          />
+
+          {/* Folder opening animation when dragging over */}
+          {isOver && (
+            <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
+              <div className="w-16 h-1 bg-primary/30 rounded-full animate-pulse" />
+            </div>
+          )}
         </div>
         <div className="p-3 flex items-start justify-between">
           <div className="truncate">
@@ -83,13 +105,19 @@ export function FolderCard({
     );
   }
 
+  // List view implementation
   return (
     <div
-      className="flex items-center p-2 hover:bg-accent rounded-md cursor-pointer group"
+      ref={setNodeRef}
+      className={`flex items-center p-2 hover:bg-accent rounded-md cursor-pointer group relative ${
+        isOver ? "ring-2 ring-primary bg-primary/5" : ""
+      }`}
       onClick={() => onOpen(folder.id)}
     >
-      <div className="mr-3">
-        <FolderIcon className="w-10 h-10" />
+      <div className="mr-3 relative">
+        <FolderIcon
+          className={`w-10 h-10 transition-transform ${isOver ? "scale-110 folder-open-animation" : ""}`}
+        />
       </div>
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate">{folder.name}</div>
