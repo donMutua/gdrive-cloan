@@ -1,7 +1,6 @@
 "use client";
 
 import type React from "react";
-
 import { useState, useEffect, useRef } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
@@ -18,8 +17,6 @@ import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FileUploadDialog } from "@/components/file-system/file-upload-dialog";
 import { DragDropZone } from "@/components/file-system/drag-drop-zone";
-
-// Add these imports at the top
 import { MoveCopyDialog } from "@/components/file-system/move-copy-dialog";
 import { FileSystemDndContext } from "@/components/file-system/dnd-context";
 import { DraggableItem } from "@/components/file-system/draggable-item";
@@ -50,8 +47,6 @@ export default function Dashboard() {
   const [breadcrumbs, setBreadcrumbs] = useState<
     { id: string | null; name: string }[]
   >([{ id: null, name: "My Drive" }]);
-
-  // Add these state variables inside the Dashboard component
   const [isMoveCopyDialogOpen, setIsMoveCopyDialogOpen] = useState(false);
   const [itemToMoveCopy, setItemToMoveCopy] = useState<{
     id: string;
@@ -59,24 +54,21 @@ export default function Dashboard() {
     type: "file" | "folder";
     mode: "move" | "copy";
   } | null>(null);
+  const [isFileUploadDialogOpen, setIsFileUploadDialogOpen] = useState(false);
 
-  // Create a ref for the file input
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load dummy data
   useEffect(() => {
     setFiles(generateDummyFiles());
     setFolders(generateDummyFolders());
   }, []);
 
-  // Filter files and folders based on current folder
   const filteredFiles = files.filter((file) => file.parentId === currentFolder);
   const filteredFolders = folders.filter(
     (folder) => folder.parentId === currentFolder
   );
   const isEmpty = filteredFiles.length === 0 && filteredFolders.length === 0;
 
-  // Handle folder navigation
   const handleOpenFolder = (folderId: string) => {
     const folder = folders.find((f) => f.id === folderId);
     if (folder) {
@@ -85,20 +77,17 @@ export default function Dashboard() {
     }
   };
 
-  // Handle breadcrumb navigation
   const handleBreadcrumbClick = (index: number) => {
     const newBreadcrumbs = breadcrumbs.slice(0, index + 1);
     setBreadcrumbs(newBreadcrumbs);
     setCurrentFolder(newBreadcrumbs[newBreadcrumbs.length - 1].id);
   };
 
-  // Handle file preview
   const handleFilePreview = (file: FileType) => {
     setSelectedFile(file);
     setIsFilePreviewOpen(true);
   };
 
-  // Handle rename
   const handleRenameClick = (id: string, type: "file" | "folder") => {
     const item =
       type === "file"
@@ -115,21 +104,20 @@ export default function Dashboard() {
     if (!itemToRename) return;
 
     if (itemToRename.type === "file") {
-      setFiles(
-        files.map((file) =>
+      setFiles((prevFiles) =>
+        prevFiles.map((file) =>
           file.id === itemToRename.id ? { ...file, name: newName } : file
         )
       );
     } else {
-      setFolders(
-        folders.map((folder) =>
+      setFolders((prevFolders) =>
+        prevFolders.map((folder) =>
           folder.id === itemToRename.id ? { ...folder, name: newName } : folder
         )
       );
     }
   };
 
-  // Handle delete
   const handleDeleteClick = (id: string, type: "file" | "folder") => {
     const item =
       type === "file"
@@ -146,12 +134,12 @@ export default function Dashboard() {
     if (!itemToDelete) return;
 
     if (itemToDelete.type === "file") {
-      setFiles(files.filter((file) => file.id !== itemToDelete.id));
+      setFiles((prevFiles) =>
+        prevFiles.filter((file) => file.id !== itemToDelete.id)
+      );
     } else {
-      // Delete folder and all its contents
       const folderIdsToDelete = [itemToDelete.id];
 
-      // Find all subfolders recursively
       const findSubfolders = (parentId: string) => {
         const subfolders = folders.filter((f) => f.parentId === parentId);
         subfolders.forEach((folder) => {
@@ -162,19 +150,17 @@ export default function Dashboard() {
 
       findSubfolders(itemToDelete.id);
 
-      // Delete all folders and files in those folders
-      setFolders(
-        folders.filter((folder) => !folderIdsToDelete.includes(folder.id))
+      setFolders((prevFolders) =>
+        prevFolders.filter((folder) => !folderIdsToDelete.includes(folder.id))
       );
-      setFiles(
-        files.filter(
+      setFiles((prevFiles) =>
+        prevFiles.filter(
           (file) => !folderIdsToDelete.includes(file.parentId as string)
         )
       );
     }
   };
 
-  // Handle create folder
   const handleCreateFolder = (name: string) => {
     const newFolder: FolderType = {
       id: `folder-${Date.now()}`,
@@ -184,15 +170,13 @@ export default function Dashboard() {
       parentId: currentFolder,
     };
 
-    setFolders([...folders, newFolder]);
+    setFolders((prevFolders) => [...prevFolders, newFolder]);
   };
 
-  // Handle file upload - directly trigger file input
   const handleUploadFile = () => {
     fileInputRef.current?.click();
   };
 
-  // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const filesArray = Array.from(e.target.files);
@@ -200,10 +184,8 @@ export default function Dashboard() {
     }
   };
 
-  // Add a new function to handle file uploads
   const handleFilesUpload = (files: File[]) => {
-    const newFiles = files.map((file) => {
-      // Determine file type
+    const newFiles: FileType[] = files.map((file) => {
       let fileType: FileType["type"] = "other";
       const fileName = file.name.toLowerCase();
 
@@ -231,11 +213,8 @@ export default function Dashboard() {
         fileType = "code";
       }
 
-      // Create a dummy URL for images
-      let url;
-      if (fileType === "image") {
-        url = "/abstract-geometric-shapes.png";
-      }
+      const url =
+        fileType === "image" ? "/abstract-geometric-shapes.png" : undefined;
 
       return {
         id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -249,20 +228,13 @@ export default function Dashboard() {
       };
     });
 
-    setFiles([...files, ...newFiles]);
+    setFiles((prevFiles) => [...prevFiles, ...newFiles]);
 
-    // Reset the file input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  // Update the state for file upload dialog
-  const [isFileUploadDialogOpen, setIsFileUploadDialogOpen] = useState(false);
-
-  // Add these handler functions inside the Dashboard component
-
-  // Handle move/copy menu click
   const handleMoveCopyClick = (
     id: string,
     type: "file" | "folder",
@@ -279,30 +251,27 @@ export default function Dashboard() {
     }
   };
 
-  // Handle move/copy action
   const handleMoveCopy = (targetFolderId: string | null) => {
     if (!itemToMoveCopy) return;
 
     if (itemToMoveCopy.mode === "move") {
-      // Move the item
       if (itemToMoveCopy.type === "file") {
-        setFiles(
-          files.map((file) =>
+        setFiles((prevFiles) =>
+          prevFiles.map((file) =>
             file.id === itemToMoveCopy.id
               ? { ...file, parentId: targetFolderId }
               : file
           )
         );
       } else {
-        // Check if we're trying to move a folder into itself or its descendants
         const isValidMove = !isDescendantFolder(
           itemToMoveCopy.id,
           targetFolderId
         );
 
         if (isValidMove) {
-          setFolders(
-            folders.map((folder) =>
+          setFolders((prevFolders) =>
+            prevFolders.map((folder) =>
               folder.id === itemToMoveCopy.id
                 ? { ...folder, parentId: targetFolderId }
                 : folder
@@ -311,7 +280,6 @@ export default function Dashboard() {
         }
       }
     } else {
-      // Copy the item
       if (itemToMoveCopy.type === "file") {
         const fileToCopy = files.find((f) => f.id === itemToMoveCopy.id);
         if (fileToCopy) {
@@ -323,15 +291,12 @@ export default function Dashboard() {
             createdAt: new Date().toISOString(),
             modifiedAt: new Date().toISOString(),
           };
-          setFiles([...files, newFile]);
+          setFiles((prevFiles) => [...prevFiles, newFile]);
         }
       } else {
         const folderToCopy = folders.find((f) => f.id === itemToMoveCopy.id);
         if (folderToCopy) {
-          // Create a map of old folder IDs to new folder IDs
           const folderIdMap = new Map<string, string>();
-
-          // Copy the folder
           const newFolderId = `folder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           folderIdMap.set(folderToCopy.id, newFolderId);
 
@@ -344,10 +309,9 @@ export default function Dashboard() {
             modifiedAt: new Date().toISOString(),
           };
 
-          // Find all subfolders and files
           const subfolders = findAllDescendantFolders(folderToCopy.id);
-          const newSubfolders = subfolders.map((subfolder) => {
-            const newSubfolderId = `folder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${Math.random().toString(36).substr(2, 5)}`;
+          const newSubfolders: FolderType[] = subfolders.map((subfolder) => {
+            const newSubfolderId = `folder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             folderIdMap.set(subfolder.id, newSubfolderId);
 
             return {
@@ -356,38 +320,36 @@ export default function Dashboard() {
               parentId:
                 subfolder.parentId === folderToCopy.id
                   ? newFolderId
-                  : folderIdMap.get(subfolder.parentId as string),
+                  : (folderIdMap.get(subfolder.parentId!) ?? null),
               createdAt: new Date().toISOString(),
               modifiedAt: new Date().toISOString(),
             };
           });
 
-          // Find all files in the folder and subfolders
           const filesToCopy = files.filter(
             (file) =>
               file.parentId === folderToCopy.id ||
               subfolders.some((sf) => sf.id === file.parentId)
           );
 
-          const newFiles = filesToCopy.map((file) => ({
+          const newFiles: FileType[] = filesToCopy.map((file) => ({
             ...file,
-            id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${Math.random().toString(36).substr(2, 5)}`,
+            id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             parentId:
               file.parentId === folderToCopy.id
                 ? newFolderId
-                : folderIdMap.get(file.parentId as string),
+                : (folderIdMap.get(file.parentId!) ?? null),
             createdAt: new Date().toISOString(),
             modifiedAt: new Date().toISOString(),
           }));
 
-          setFolders([...folders, newFolder, ...newSubfolders]);
-          setFiles([...files, ...newFiles]);
+          setFolders((prev) => [...prev, newFolder, ...newSubfolders]);
+          setFiles((prev) => [...prev, ...newFiles]);
         }
       }
     }
   };
 
-  // Helper function to check if a folder is a descendant of another folder
   const isDescendantFolder = (
     folderId: string,
     targetFolderId: string | null
@@ -401,7 +363,6 @@ export default function Dashboard() {
     return isDescendantFolder(folderId, targetFolder.parentId);
   };
 
-  // Helper function to find all descendant folders
   const findAllDescendantFolders = (parentId: string): FolderType[] => {
     const directChildren = folders.filter((f) => f.parentId === parentId);
     const descendants = [...directChildren];
@@ -415,15 +376,14 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Hidden file input */}
       <input
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
         className="hidden"
+        multiple
       />
 
-      {/* Sidebar - hidden on mobile */}
       <div
         className={`fixed inset-y-0 left-0 z-50 transform ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -435,7 +395,6 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <Topbar
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
@@ -451,25 +410,22 @@ export default function Dashboard() {
           currentView={view}
           onMoveItem={(itemId, itemType, targetFolderId, showDialog = true) => {
             if (showDialog) {
-              // Show dialog for menu-initiated moves
               handleMoveCopyClick(itemId, itemType, "move");
             } else {
-              // Direct move for drag and drop without dialog
               if (itemType === "file") {
-                setFiles(
-                  files.map((file) =>
+                setFiles((prevFiles) =>
+                  prevFiles.map((file) =>
                     file.id === itemId
                       ? { ...file, parentId: targetFolderId }
                       : file
                   )
                 );
               } else {
-                // Check if we're trying to move a folder into itself or its descendants
                 const isValidMove = !isDescendantFolder(itemId, targetFolderId);
 
                 if (isValidMove) {
-                  setFolders(
-                    folders.map((folder) =>
+                  setFolders((prevFolders) =>
+                    prevFolders.map((folder) =>
                       folder.id === itemId
                         ? { ...folder, parentId: targetFolderId }
                         : folder
@@ -490,7 +446,6 @@ export default function Dashboard() {
             className="flex-1 overflow-y-auto"
           >
             <main className="p-4">
-              {/* Breadcrumbs */}
               <div className="flex items-center space-x-2 overflow-x-auto pb-4">
                 {breadcrumbs.map((crumb, index) => (
                   <div key={index} className="flex items-center">
@@ -508,7 +463,6 @@ export default function Dashboard() {
                 ))}
               </div>
 
-              {/* Empty state */}
               {isEmpty && (
                 <EmptyState
                   onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
@@ -516,7 +470,6 @@ export default function Dashboard() {
                 />
               )}
 
-              {/* Folders */}
               {filteredFolders.length > 0 && (
                 <div className="mb-8">
                   <h2 className="text-lg font-medium mb-4">Folders</h2>
@@ -554,7 +507,6 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Files */}
               {filteredFiles.length > 0 && (
                 <div>
                   <h2 className="text-lg font-medium mb-4">Files</h2>
@@ -595,7 +547,6 @@ export default function Dashboard() {
         </FileSystemDndContext>
       </div>
 
-      {/* Modals */}
       <FilePreviewModal
         file={selectedFile}
         isOpen={isFilePreviewOpen}
@@ -631,12 +582,14 @@ export default function Dashboard() {
         itemName={itemToDelete?.name || ""}
         itemType={itemToDelete?.type || "file"}
       />
+
       <FileUploadDialog
         isOpen={isFileUploadDialogOpen}
         onClose={() => setIsFileUploadDialogOpen(false)}
         onUpload={handleFilesUpload}
         currentFolderId={currentFolder}
       />
+
       <MoveCopyDialog
         isOpen={isMoveCopyDialogOpen}
         onClose={() => setIsMoveCopyDialogOpen(false)}
