@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { FolderType } from "@/types/file-system";
-import { createClientComponentClient } from "@/lib/supabase";
+import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { useState } from "react";
 
 // Type for create folder request
@@ -25,7 +25,7 @@ interface MoveFolderRequest {
 
 // Function to fetch folders
 const fetchFolders = async (userId: string): Promise<FolderType[]> => {
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseBrowserClient();
 
   const { data, error } = await supabase
     .from("folders")
@@ -51,7 +51,7 @@ const createFolder = async (
   userId: string,
   folderData: CreateFolderRequest
 ): Promise<FolderType> => {
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseBrowserClient();
 
   const { data, error } = await supabase
     .from("folders")
@@ -82,7 +82,7 @@ const createFolder = async (
 const renameFolder = async (
   folderData: RenameFolderRequest
 ): Promise<FolderType> => {
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseBrowserClient();
 
   const { data, error } = await supabase
     .from("folders")
@@ -109,7 +109,7 @@ const renameFolder = async (
 
 // Function to delete a folder
 const deleteFolder = async (folderId: string): Promise<void> => {
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseBrowserClient();
 
   // First delete all files in the folder
   const { error: filesError } = await supabase
@@ -131,7 +131,7 @@ const deleteFolder = async (folderId: string): Promise<void> => {
 
 // Function to move a folder
 const moveFolder = async (moveData: MoveFolderRequest): Promise<FolderType> => {
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseBrowserClient();
 
   const { data, error } = await supabase
     .from("folders")

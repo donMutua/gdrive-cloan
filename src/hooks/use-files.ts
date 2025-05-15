@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { FileType } from "@/types/file-system";
-import { createClientComponentClient } from "@/lib/supabase";
+import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { formatFileSize } from "@/lib/validations";
 
 // Type for create file request
@@ -29,7 +29,7 @@ interface MoveFileRequest {
 
 // Function to fetch files
 const fetchFiles = async (userId: string): Promise<FileType[]> => {
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseBrowserClient();
 
   const { data, error } = await supabase
     .from("files")
@@ -58,7 +58,7 @@ const createFile = async (
   userId: string,
   fileData: CreateFileRequest
 ): Promise<FileType> => {
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseBrowserClient();
 
   const { data, error } = await supabase
     .from("files")
@@ -94,7 +94,7 @@ const createFile = async (
 
 // Function to rename a file
 const renameFile = async (fileData: RenameFileRequest): Promise<FileType> => {
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseBrowserClient();
 
   const { data, error } = await supabase
     .from("files")
@@ -124,7 +124,7 @@ const renameFile = async (fileData: RenameFileRequest): Promise<FileType> => {
 
 // Function to delete a file
 const deleteFile = async (fileId: string): Promise<void> => {
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseBrowserClient();
 
   // First get the file to get the key for storage deletion
   const { error: fetchError } = await supabase
@@ -153,7 +153,7 @@ const deleteFile = async (fileId: string): Promise<void> => {
 
 // Function to move a file
 const moveFile = async (moveData: MoveFileRequest): Promise<FileType> => {
-  const supabase = createClientComponentClient();
+  const supabase = getSupabaseBrowserClient();
 
   const { data, error } = await supabase
     .from("files")
