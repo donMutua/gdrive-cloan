@@ -213,8 +213,7 @@ export default function Dashboard() {
         fileType = "code";
       }
 
-      const url =
-        fileType === "image" ? "/abstract-geometric-shapes.png" : undefined;
+      const url = fileType === "image" ? "/noprofilepic.png" : undefined;
 
       return {
         id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
