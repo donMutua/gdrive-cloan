@@ -1,7 +1,7 @@
 import type React from "react";
 import type { Metadata } from "next";
 import { Inter, Roboto } from "next/font/google";
-import { ClerkProvider } from "@clerk/nextjs";
+import { ClientLayout } from "@/components/layout/client-layout";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -22,18 +22,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <head>
-          <link
-            href="https://fonts.googleapis.com/icon?family=Material+Icons"
-            rel="stylesheet"
-          />
-        </head>
-        <body className={`${inter.variable} ${roboto.variable} font-sans`}>
-          {children}
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="en">
+      <head>
+        <link
+          href="https://fonts.googleapis.com/icon?family=Material+Icons"
+          rel="stylesheet"
+        />
+      </head>
+      <body className={`${inter.variable} ${roboto.variable} font-sans`}>
+        <ClientLayout>{children}</ClientLayout>
+      </body>
+    </html>
   );
 }
