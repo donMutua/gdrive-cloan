@@ -86,7 +86,7 @@ export const generateDummyFiles = (): FileType[] => {
       name: "Profile Picture.jpg",
       type: "image",
       size: "1.2 MB",
-      url: "/abstract-geometric-shapes.png",
+      url: "/noprofilepic.png",
       createdAt: generateDate(),
       modifiedAt: generateDate(),
       parentId: "folder-2",

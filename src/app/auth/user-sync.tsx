@@ -11,7 +11,6 @@ interface UserSyncProps {
 export function UserSync({ children }: UserSyncProps) {
   const { isLoaded, isSignedIn, user } = useUser();
   const [isSyncingUser, setIsSyncingUser] = useState(false);
-  const supabaseClient = createClientComponentClient();
 
   useEffect(() => {
     if (isSignedIn && user) {
@@ -26,7 +25,15 @@ export function UserSync({ children }: UserSyncProps) {
             return;
           }
 
-          // Approach: Insert or update the user record using upsert
+          // Get a fresh client instance for each sync operation
+          const supabaseClient = createClientComponentClient();
+
+          // Add console logs to debug
+          console.log("Attempting to sync user with Supabase:", {
+            id: user.id,
+            email: primaryEmail,
+          });
+
           const { error } = await supabaseClient.from("users").upsert(
             {
               id: user.id,
@@ -34,17 +41,18 @@ export function UserSync({ children }: UserSyncProps) {
               first_name: user.firstName || null,
               last_name: user.lastName || null,
               avatar_url: user.imageUrl || null,
+              created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             },
             {
-              onConflict: "id", // Update on conflict of the id field
+              onConflict: "id",
             }
           );
 
           if (error) {
             console.error("Error syncing user:", error);
           } else {
-            console.log("User synchronized with Supabase");
+            console.log("User synchronized with Supabase successfully");
           }
         } catch (error) {
           console.error("Error in user sync:", error);
@@ -55,7 +63,7 @@ export function UserSync({ children }: UserSyncProps) {
 
       syncUserWithSupabase();
     }
-  }, [isLoaded, isSignedIn, user, supabaseClient]);
+  }, [isLoaded, isSignedIn, user]);
 
   if (!isLoaded || isSyncingUser) {
     return (
