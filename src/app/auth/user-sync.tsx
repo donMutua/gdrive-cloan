@@ -2,7 +2,7 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { createClientComponentClient } from "@/lib/supabase";
+import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 interface UserSyncProps {
   children: React.ReactNode;
@@ -25,10 +25,9 @@ export function UserSync({ children }: UserSyncProps) {
             return;
           }
 
-          // Get a fresh client instance for each sync operation
-          const supabaseClient = createClientComponentClient();
+          // Use the new browser client getter
+          const supabaseClient = getSupabaseBrowserClient();
 
-          // Add console logs to debug
           console.log("Attempting to sync user with Supabase:", {
             id: user.id,
             email: primaryEmail,
@@ -49,11 +48,8 @@ export function UserSync({ children }: UserSyncProps) {
             }
           );
 
-          if (error) {
-            console.error("Error syncing user:", error);
-          } else {
-            console.log("User synchronized with Supabase successfully");
-          }
+          if (error) throw error;
+          console.log("User synchronized with Supabase successfully");
         } catch (error) {
           console.error("Error in user sync:", error);
         } finally {
