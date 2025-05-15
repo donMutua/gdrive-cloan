@@ -1,11 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  DndContext,
-  type DragEndEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core";
+import type React from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { FileCard } from "@/components/file-system/file-card";
@@ -20,7 +16,11 @@ import { generateDummyFiles, generateDummyFolders } from "@/lib/dummy-data";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FileUploadDialog } from "@/components/file-system/file-upload-dialog";
-import { MoveToFolderDialog } from "@/components/file-system/move-to-folder-dialog";
+import { DragDropZone } from "@/components/file-system/drag-drop-zone";
+import { MoveCopyDialog } from "@/components/file-system/move-copy-dialog";
+import { FileSystemDndContext } from "@/components/file-system/dnd-context";
+import { DraggableItem } from "@/components/file-system/draggable-item";
+import { DroppableFolder } from "@/components/file-system/droppable-folder";
 
 export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -47,25 +47,28 @@ export default function Dashboard() {
   const [breadcrumbs, setBreadcrumbs] = useState<
     { id: string | null; name: string }[]
   >([{ id: null, name: "My Drive" }]);
-  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
-  const [itemToMove, setItemToMove] = useState<string | null>(null);
+  const [isMoveCopyDialogOpen, setIsMoveCopyDialogOpen] = useState(false);
+  const [itemToMoveCopy, setItemToMoveCopy] = useState<{
+    id: string;
+    name: string;
+    type: "file" | "folder";
+    mode: "move" | "copy";
+  } | null>(null);
   const [isFileUploadDialogOpen, setIsFileUploadDialogOpen] = useState(false);
-  const [, setActiveId] = useState<string | null>(null);
 
-  // Load dummy data
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     setFiles(generateDummyFiles());
     setFolders(generateDummyFolders());
   }, []);
 
-  // Filter files and folders based on current folder
   const filteredFiles = files.filter((file) => file.parentId === currentFolder);
   const filteredFolders = folders.filter(
     (folder) => folder.parentId === currentFolder
   );
   const isEmpty = filteredFiles.length === 0 && filteredFolders.length === 0;
 
-  // Handle folder navigation
   const handleOpenFolder = (folderId: string) => {
     const folder = folders.find((f) => f.id === folderId);
     if (folder) {
@@ -74,20 +77,17 @@ export default function Dashboard() {
     }
   };
 
-  // Handle breadcrumb navigation
   const handleBreadcrumbClick = (index: number) => {
     const newBreadcrumbs = breadcrumbs.slice(0, index + 1);
     setBreadcrumbs(newBreadcrumbs);
     setCurrentFolder(newBreadcrumbs[newBreadcrumbs.length - 1].id);
   };
 
-  // Handle file preview
   const handleFilePreview = (file: FileType) => {
     setSelectedFile(file);
     setIsFilePreviewOpen(true);
   };
 
-  // Handle rename
   const handleRenameClick = (id: string, type: "file" | "folder") => {
     const item =
       type === "file"
@@ -104,21 +104,20 @@ export default function Dashboard() {
     if (!itemToRename) return;
 
     if (itemToRename.type === "file") {
-      setFiles(
-        files.map((file) =>
+      setFiles((prevFiles) =>
+        prevFiles.map((file) =>
           file.id === itemToRename.id ? { ...file, name: newName } : file
         )
       );
     } else {
-      setFolders(
-        folders.map((folder) =>
+      setFolders((prevFolders) =>
+        prevFolders.map((folder) =>
           folder.id === itemToRename.id ? { ...folder, name: newName } : folder
         )
       );
     }
   };
 
-  // Handle delete
   const handleDeleteClick = (id: string, type: "file" | "folder") => {
     const item =
       type === "file"
@@ -135,12 +134,12 @@ export default function Dashboard() {
     if (!itemToDelete) return;
 
     if (itemToDelete.type === "file") {
-      setFiles(files.filter((file) => file.id !== itemToDelete.id));
+      setFiles((prevFiles) =>
+        prevFiles.filter((file) => file.id !== itemToDelete.id)
+      );
     } else {
-      // Delete folder and all its contents
       const folderIdsToDelete = [itemToDelete.id];
 
-      // Find all subfolders recursively
       const findSubfolders = (parentId: string) => {
         const subfolders = folders.filter((f) => f.parentId === parentId);
         subfolders.forEach((folder) => {
@@ -151,19 +150,17 @@ export default function Dashboard() {
 
       findSubfolders(itemToDelete.id);
 
-      // Delete all folders and files in those folders
-      setFolders(
-        folders.filter((folder) => !folderIdsToDelete.includes(folder.id))
+      setFolders((prevFolders) =>
+        prevFolders.filter((folder) => !folderIdsToDelete.includes(folder.id))
       );
-      setFiles(
-        files.filter(
+      setFiles((prevFiles) =>
+        prevFiles.filter(
           (file) => !folderIdsToDelete.includes(file.parentId as string)
         )
       );
     }
   };
 
-  // Handle create folder
   const handleCreateFolder = (name: string) => {
     const newFolder: FolderType = {
       id: `folder-${Date.now()}`,
@@ -173,13 +170,22 @@ export default function Dashboard() {
       parentId: currentFolder,
     };
 
-    setFolders([...folders, newFolder]);
+    setFolders((prevFolders) => [...prevFolders, newFolder]);
   };
 
-  // Handle file upload
+  const handleUploadFile = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const filesArray = Array.from(e.target.files);
+      handleFilesUpload(filesArray);
+    }
+  };
+
   const handleFilesUpload = (files: File[]) => {
-    const newFiles = files.map((file) => {
-      // Determine file type
+    const newFiles: FileType[] = files.map((file) => {
       let fileType: FileType["type"] = "other";
       const fileName = file.name.toLowerCase();
 
@@ -207,11 +213,8 @@ export default function Dashboard() {
         fileType = "code";
       }
 
-      // Create a dummy URL for images
-      let url;
-      if (fileType === "image") {
-        url = "/abstract-geometric-shapes.png";
-      }
+      const url =
+        fileType === "image" ? "/abstract-geometric-shapes.png" : undefined;
 
       return {
         id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -225,79 +228,224 @@ export default function Dashboard() {
       };
     });
 
-    setFiles([...files, ...newFiles]);
+    setFiles((prevFiles) => [...prevFiles, ...newFiles]);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
-  // Handle moving files to folders
-  const handleMoveToFolder = (targetFolderId: string | null) => {
-    if (!itemToMove) return;
+  const handleMoveCopyClick = (
+    id: string,
+    type: "file" | "folder",
+    mode: "move" | "copy"
+  ) => {
+    const item =
+      type === "file"
+        ? files.find((f) => f.id === id)
+        : folders.find((f) => f.id === id);
 
-    setFiles(
-      files.map((file) =>
-        file.id === itemToMove ? { ...file, parentId: targetFolderId } : file
-      )
-    );
-
-    setIsMoveDialogOpen(false);
-    setItemToMove(null);
+    if (item) {
+      setItemToMoveCopy({ id, name: item.name, type, mode });
+      setIsMoveCopyDialogOpen(true);
+    }
   };
 
-  // DnD event handlers
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
-  };
+  const handleMoveCopy = (targetFolderId: string | null) => {
+    if (!itemToMoveCopy) return;
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    setActiveId(null);
-
-    if (over && active.id !== over.id) {
-      const overId = over.id as string;
-      // Extract the folder ID from the droppable ID (format: folder-{id})
-      const targetFolderId = overId.startsWith("folder-")
-        ? overId.substring(7)
-        : null;
-
-      if (targetFolderId) {
-        // Move the file to the target folder
-        setFiles(
-          files.map((file) =>
-            file.id === active.id ? { ...file, parentId: targetFolderId } : file
+    if (itemToMoveCopy.mode === "move") {
+      if (itemToMoveCopy.type === "file") {
+        setFiles((prevFiles) =>
+          prevFiles.map((file) =>
+            file.id === itemToMoveCopy.id
+              ? { ...file, parentId: targetFolderId }
+              : file
           )
         );
+      } else {
+        const isValidMove = !isDescendantFolder(
+          itemToMoveCopy.id,
+          targetFolderId
+        );
+
+        if (isValidMove) {
+          setFolders((prevFolders) =>
+            prevFolders.map((folder) =>
+              folder.id === itemToMoveCopy.id
+                ? { ...folder, parentId: targetFolderId }
+                : folder
+            )
+          );
+        }
+      }
+    } else {
+      if (itemToMoveCopy.type === "file") {
+        const fileToCopy = files.find((f) => f.id === itemToMoveCopy.id);
+        if (fileToCopy) {
+          const newFile: FileType = {
+            ...fileToCopy,
+            id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name: `Copy of ${fileToCopy.name}`,
+            parentId: targetFolderId,
+            createdAt: new Date().toISOString(),
+            modifiedAt: new Date().toISOString(),
+          };
+          setFiles((prevFiles) => [...prevFiles, newFile]);
+        }
+      } else {
+        const folderToCopy = folders.find((f) => f.id === itemToMoveCopy.id);
+        if (folderToCopy) {
+          const folderIdMap = new Map<string, string>();
+          const newFolderId = `folder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          folderIdMap.set(folderToCopy.id, newFolderId);
+
+          const newFolder: FolderType = {
+            ...folderToCopy,
+            id: newFolderId,
+            name: `Copy of ${folderToCopy.name}`,
+            parentId: targetFolderId,
+            createdAt: new Date().toISOString(),
+            modifiedAt: new Date().toISOString(),
+          };
+
+          const subfolders = findAllDescendantFolders(folderToCopy.id);
+          const newSubfolders: FolderType[] = subfolders.map((subfolder) => {
+            const newSubfolderId = `folder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            folderIdMap.set(subfolder.id, newSubfolderId);
+
+            return {
+              ...subfolder,
+              id: newSubfolderId,
+              parentId:
+                subfolder.parentId === folderToCopy.id
+                  ? newFolderId
+                  : (folderIdMap.get(subfolder.parentId!) ?? null),
+              createdAt: new Date().toISOString(),
+              modifiedAt: new Date().toISOString(),
+            };
+          });
+
+          const filesToCopy = files.filter(
+            (file) =>
+              file.parentId === folderToCopy.id ||
+              subfolders.some((sf) => sf.id === file.parentId)
+          );
+
+          const newFiles: FileType[] = filesToCopy.map((file) => ({
+            ...file,
+            id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            parentId:
+              file.parentId === folderToCopy.id
+                ? newFolderId
+                : (folderIdMap.get(file.parentId!) ?? null),
+            createdAt: new Date().toISOString(),
+            modifiedAt: new Date().toISOString(),
+          }));
+
+          setFolders((prev) => [...prev, newFolder, ...newSubfolders]);
+          setFiles((prev) => [...prev, ...newFiles]);
+        }
       }
     }
   };
 
+  const isDescendantFolder = (
+    folderId: string,
+    targetFolderId: string | null
+  ): boolean => {
+    if (targetFolderId === null) return false;
+    if (folderId === targetFolderId) return true;
+
+    const targetFolder = folders.find((f) => f.id === targetFolderId);
+    if (!targetFolder) return false;
+
+    return isDescendantFolder(folderId, targetFolder.parentId);
+  };
+
+  const findAllDescendantFolders = (parentId: string): FolderType[] => {
+    const directChildren = folders.filter((f) => f.parentId === parentId);
+    const descendants = [...directChildren];
+
+    directChildren.forEach((child) => {
+      descendants.push(...findAllDescendantFolders(child.id));
+    });
+
+    return descendants;
+  };
+
   return (
-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="flex h-screen bg-background">
-        {/* Sidebar - hidden on mobile */}
-        <div
-          className={`fixed inset-y-0 left-0 z-50 transform ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          } md:relative md:translate-x-0 transition-transform duration-200 ease-in-out md:block`}
+    <div className="flex h-screen bg-background">
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+        multiple
+      />
+
+      <div
+        className={`fixed inset-y-0 left-0 z-50 transform ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } md:relative md:translate-x-0 transition-transform duration-200 ease-in-out md:block`}
+      >
+        <Sidebar
+          onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
+          onUploadFile={handleUploadFile}
+        />
+      </div>
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Topbar
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          onViewChange={setView}
+          currentView={view}
+          onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
+          onUploadFile={handleUploadFile}
+        />
+
+        <FileSystemDndContext
+          files={files}
+          folders={folders}
+          currentView={view}
+          onMoveItem={(itemId, itemType, targetFolderId, showDialog = true) => {
+            if (showDialog) {
+              handleMoveCopyClick(itemId, itemType, "move");
+            } else {
+              if (itemType === "file") {
+                setFiles((prevFiles) =>
+                  prevFiles.map((file) =>
+                    file.id === itemId
+                      ? { ...file, parentId: targetFolderId }
+                      : file
+                  )
+                );
+              } else {
+                const isValidMove = !isDescendantFolder(itemId, targetFolderId);
+
+                if (isValidMove) {
+                  setFolders((prevFolders) =>
+                    prevFolders.map((folder) =>
+                      folder.id === itemId
+                        ? { ...folder, parentId: targetFolderId }
+                        : folder
+                    )
+                  );
+                }
+              }
+            }
+          }}
+          onPreviewFile={handleFilePreview}
+          onDeleteItem={handleDeleteClick}
+          onRenameItem={handleRenameClick}
+          onMoveItemMenu={(id, type) => handleMoveCopyClick(id, type, "move")}
+          onCopyItem={(id, type) => handleMoveCopyClick(id, type, "copy")}
         >
-          <Sidebar
-            onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
-            onUploadFile={() => setIsFileUploadDialogOpen(true)}
-          />
-        </div>
-
-        {/* Main content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Topbar
-            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-            onViewChange={setView}
-            currentView={view}
-            onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
-            onUploadFile={() => setIsFileUploadDialogOpen(true)}
-          />
-
-          <div className="flex-1 overflow-y-auto">
+          <DragDropZone
+            onFilesDrop={handleFilesUpload}
+            className="flex-1 overflow-y-auto"
+          >
             <main className="p-4">
-              {/* Breadcrumbs */}
               <div className="flex items-center space-x-2 overflow-x-auto pb-4">
                 {breadcrumbs.map((crumb, index) => (
                   <div key={index} className="flex items-center">
@@ -315,15 +463,13 @@ export default function Dashboard() {
                 ))}
               </div>
 
-              {/* Empty state */}
               {isEmpty && (
                 <EmptyState
                   onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
-                  onUploadFile={() => setIsFileUploadDialogOpen(true)}
+                  onUploadFile={handleUploadFile}
                 />
               )}
 
-              {/* Folders */}
               {filteredFolders.length > 0 && (
                 <div className="mb-8">
                   <h2 className="text-lg font-medium mb-4">Folders</h2>
@@ -335,20 +481,32 @@ export default function Dashboard() {
                     }
                   >
                     {filteredFolders.map((folder) => (
-                      <FolderCard
-                        key={folder.id}
-                        folder={folder}
-                        view={view}
-                        onOpen={handleOpenFolder}
-                        onDelete={(id) => handleDeleteClick(id, "folder")}
-                        onRename={(id) => handleRenameClick(id, "folder")}
-                      />
+                      <DroppableFolder key={folder.id} id={folder.id}>
+                        <DraggableItem
+                          id={folder.id}
+                          data={folder}
+                          type="folder"
+                        >
+                          <FolderCard
+                            folder={folder}
+                            view={view}
+                            onOpen={handleOpenFolder}
+                            onDelete={(id) => handleDeleteClick(id, "folder")}
+                            onRename={(id) => handleRenameClick(id, "folder")}
+                            onMove={(id) =>
+                              handleMoveCopyClick(id, "folder", "move")
+                            }
+                            onCopy={(id) =>
+                              handleMoveCopyClick(id, "folder", "copy")
+                            }
+                          />
+                        </DraggableItem>
+                      </DroppableFolder>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Files */}
               {filteredFiles.length > 0 && (
                 <div>
                   <h2 className="text-lg font-medium mb-4">Files</h2>
@@ -360,78 +518,88 @@ export default function Dashboard() {
                     }
                   >
                     {filteredFiles.map((file) => (
-                      <FileCard
+                      <DraggableItem
                         key={file.id}
-                        file={file}
-                        view={view}
-                        onPreview={handleFilePreview}
-                        onDelete={(id) => handleDeleteClick(id, "file")}
-                        onRename={(id) => handleRenameClick(id, "file")}
-                        onMove={(id) => {
-                          setItemToMove(id);
-                          setIsMoveDialogOpen(true);
-                        }}
-                      />
+                        id={file.id}
+                        data={file}
+                        type="file"
+                      >
+                        <FileCard
+                          file={file}
+                          view={view}
+                          onPreview={handleFilePreview}
+                          onDelete={(id) => handleDeleteClick(id, "file")}
+                          onRename={(id) => handleRenameClick(id, "file")}
+                          onMove={(id) =>
+                            handleMoveCopyClick(id, "file", "move")
+                          }
+                          onCopy={(id) =>
+                            handleMoveCopyClick(id, "file", "copy")
+                          }
+                        />
+                      </DraggableItem>
                     ))}
                   </div>
                 </div>
               )}
             </main>
-          </div>
-        </div>
-
-        {/* Modals */}
-        <FilePreviewModal
-          file={selectedFile}
-          isOpen={isFilePreviewOpen}
-          onClose={() => setIsFilePreviewOpen(false)}
-          onDelete={(id) => {
-            setIsFilePreviewOpen(false);
-            handleDeleteClick(id, "file");
-          }}
-          onRename={(id) => {
-            setIsFilePreviewOpen(false);
-            handleRenameClick(id, "file");
-          }}
-        />
-
-        <RenameDialog
-          isOpen={isRenameDialogOpen}
-          onClose={() => setIsRenameDialogOpen(false)}
-          onRename={handleRename}
-          currentName={itemToRename?.name || ""}
-          itemType={itemToRename?.type || "file"}
-        />
-
-        <CreateFolderDialog
-          isOpen={isCreateFolderDialogOpen}
-          onClose={() => setIsCreateFolderDialogOpen(false)}
-          onCreate={handleCreateFolder}
-        />
-
-        <DeleteDialog
-          isOpen={isDeleteDialogOpen}
-          onClose={() => setIsDeleteDialogOpen(false)}
-          onConfirm={handleDelete}
-          itemName={itemToDelete?.name || ""}
-          itemType={itemToDelete?.type || "file"}
-        />
-
-        <FileUploadDialog
-          isOpen={isFileUploadDialogOpen}
-          onClose={() => setIsFileUploadDialogOpen(false)}
-          onUpload={handleFilesUpload}
-          currentFolderId={currentFolder}
-        />
-
-        <MoveToFolderDialog
-          isOpen={isMoveDialogOpen}
-          onClose={() => setIsMoveDialogOpen(false)}
-          onMove={handleMoveToFolder}
-          folders={folders}
-          currentFolderId={currentFolder}
-        />
+          </DragDropZone>
+        </FileSystemDndContext>
       </div>
-    </DndContext>
+
+      <FilePreviewModal
+        file={selectedFile}
+        isOpen={isFilePreviewOpen}
+        onClose={() => setIsFilePreviewOpen(false)}
+        onDelete={(id) => {
+          setIsFilePreviewOpen(false);
+          handleDeleteClick(id, "file");
+        }}
+        onRename={(id) => {
+          setIsFilePreviewOpen(false);
+          handleRenameClick(id, "file");
+        }}
+      />
+
+      <RenameDialog
+        isOpen={isRenameDialogOpen}
+        onClose={() => setIsRenameDialogOpen(false)}
+        onRename={handleRename}
+        currentName={itemToRename?.name || ""}
+        itemType={itemToRename?.type || "file"}
+      />
+
+      <CreateFolderDialog
+        isOpen={isCreateFolderDialogOpen}
+        onClose={() => setIsCreateFolderDialogOpen(false)}
+        onCreate={handleCreateFolder}
+      />
+
+      <DeleteDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleDelete}
+        itemName={itemToDelete?.name || ""}
+        itemType={itemToDelete?.type || "file"}
+      />
+
+      <FileUploadDialog
+        isOpen={isFileUploadDialogOpen}
+        onClose={() => setIsFileUploadDialogOpen(false)}
+        onUpload={handleFilesUpload}
+        currentFolderId={currentFolder}
+      />
+
+      <MoveCopyDialog
+        isOpen={isMoveCopyDialogOpen}
+        onClose={() => setIsMoveCopyDialogOpen(false)}
+        onMove={handleMoveCopy}
+        folders={folders}
+        currentFolderId={currentFolder}
+        itemName={itemToMoveCopy?.name || ""}
+        itemType={itemToMoveCopy?.type || "file"}
+        mode={itemToMoveCopy?.mode || "move"}
+      />
+    </div>
   );
 }
