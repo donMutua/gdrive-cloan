@@ -1,6 +1,6 @@
 "use client";
 
-// import { SignIn } from '@clerk/nextjs';
+import { SignIn } from "@clerk/nextjs";
 import Image from "next/image";
 
 export default function SignInPage() {
@@ -33,33 +33,34 @@ export default function SignInPage() {
             </div>
           </div>
 
-          {/* <SignIn
+          <SignIn
             appearance={{
               elements: {
-                rootBox: 'w-full',
-                card: 'shadow-none p-0',
-                header: 'hidden',
-                footer: 'hidden',
+                rootBox: "w-full",
+                card: "shadow-none p-0",
+                header: "hidden",
+                footer: "hidden",
                 formButtonPrimary:
-                  'w-full bg-primary hover:bg-primary/90 text-white py-2 rounded-md',
+                  "w-full bg-primary hover:bg-primary/90 text-white py-2 rounded-md",
                 formFieldInput:
-                  'block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6',
-                formFieldLabel: 'block text-sm font-medium leading-6 text-gray-900 mb-1',
-                formResendCodeLink: 'text-primary hover:text-primary/80',
+                  "block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6",
+                formFieldLabel:
+                  "block text-sm font-medium leading-6 text-gray-900 mb-1",
+                formResendCodeLink: "text-primary hover:text-primary/80",
                 socialButtonsBlockButton:
-                  'w-full border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-500 shadow-sm hover:bg-gray-50 rounded-md',
-                footerAction: 'mt-4 text-center text-sm',
-                footerActionLink: 'text-primary hover:underline',
+                  "w-full border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-500 shadow-sm hover:bg-gray-50 rounded-md",
+                footerAction: "mt-4 text-center text-sm",
+                footerActionLink: "text-primary hover:underline",
               },
               layout: {
-                socialButtonsPlacement: 'bottom',
+                socialButtonsPlacement: "bottom",
               },
             }}
             routing="path"
             path="/auth/sign-in"
             signUpUrl="/auth/sign-up"
             fallbackRedirectUrl="/dashboard"
-          /> */}
+          />
         </div>
       </div>
       <div className="hidden bg-muted lg:block">
