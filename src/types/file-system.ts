@@ -10,7 +10,7 @@ export interface FileType {
     | "word"
     | "other";
   size: string;
-  url?: string;
+  url?: string | null;
   createdAt: string;
   modifiedAt: string;
   parentId: string | null;
