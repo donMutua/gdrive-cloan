@@ -15,13 +15,15 @@ if (typeof window === "undefined" && !supabaseServiceKey) {
   `);
 }
 
-export const supabase =
-  typeof window === "undefined"
-    ? createClient<Database>(supabaseUrl!, supabaseServiceKey!, {
-        auth: { persistSession: false },
-        global: { headers: { "x-client-info": "@supabase/js-v2" } },
-      })
-    : null;
+// For use in API routes and server components
+export const supabase = createClient<Database>(
+  supabaseUrl!,
+  supabaseServiceKey!,
+  {
+    auth: { persistSession: false },
+    global: { headers: { "x-client-info": "@supabase/js-v2" } },
+  }
+);
 
 // Client-side client creator
 export const createClientComponentClient = () => {
