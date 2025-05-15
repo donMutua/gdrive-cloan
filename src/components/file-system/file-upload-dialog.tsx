@@ -14,69 +14,115 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Upload, X } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 interface FileUploadDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onUpload: (file: File) => void;
+  onUpload: (files: File[]) => void;
+  currentFolderId: string | null;
 }
 
 export function FileUploadDialog({
   isOpen,
   onClose,
   onUpload,
+  currentFolderId,
 }: FileUploadDialogProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedFiles(Array.from(e.target.files));
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedFile) {
-      onUpload(selectedFile);
-      setSelectedFile(null);
-      onClose();
+    if (selectedFiles.length > 0) {
+      setIsUploading(true);
+
+      // Simulate upload progress
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 5;
+        setUploadProgress(progress);
+        if (progress >= 100) {
+          clearInterval(interval);
+          onUpload(selectedFiles);
+          setIsUploading(false);
+          setSelectedFiles([]);
+          setUploadProgress(0);
+          onClose();
+        }
+      }, 100);
     }
   };
 
   const handleClose = () => {
-    setSelectedFile(null);
-    onClose();
+    if (!isUploading) {
+      setSelectedFiles([]);
+      setUploadProgress(0);
+      onClose();
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(selectedFiles.filter((_, i) => i !== index));
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Upload file</DialogTitle>
+          <DialogTitle>Upload files</DialogTitle>
           <DialogDescription>
-            Select a file from your device to upload.
+            {currentFolderId
+              ? "Upload files to the current folder"
+              : "Upload files to your drive"}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
-            {selectedFile ? (
-              <div className="flex items-center justify-between p-3 border rounded-md">
-                <div className="truncate">
-                  <p className="font-medium truncate">{selectedFile.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(selectedFile.size / 1024).toFixed(2)} KB
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setSelectedFile(null)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+            {selectedFiles.length > 0 ? (
+              <div className="space-y-2">
+                {selectedFiles.map((file, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-3 border rounded-md"
+                  >
+                    <div className="truncate flex-1 mr-2">
+                      <p className="font-medium truncate">{file.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(file.size / 1024).toFixed(2)} KB
+                      </p>
+                    </div>
+                    {!isUploading && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeFile(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+
+                {isUploading && (
+                  <div className="mt-4">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-sm">Uploading...</span>
+                      <span className="text-sm">{uploadProgress}%</span>
+                    </div>
+                    <Progress value={uploadProgress} className="h-2" />
+                  </div>
+                )}
               </div>
             ) : (
               <div
@@ -86,23 +132,41 @@ export function FileUploadDialog({
                 <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                 <p className="text-sm font-medium mb-1">Click to upload</p>
                 <p className="text-xs text-muted-foreground">
-                  or drag and drop your file here
+                  or drag and drop your files here
                 </p>
                 <Input
                   ref={fileInputRef}
                   type="file"
                   className="hidden"
                   onChange={handleFileChange}
+                  multiple
                 />
               </div>
             )}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClose}
+              disabled={isUploading}
+            >
               Cancel
             </Button>
-            <Button type="submit" disabled={!selectedFile}>
-              Upload
+            <Button
+              type="submit"
+              disabled={selectedFiles.length === 0 || isUploading}
+            >
+              {isUploading ? (
+                <span className="flex items-center">
+                  Uploading<span className="ml-2 animate-pulse">...</span>
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <Upload className="mr-2 h-4 w-4" />
+                  Upload
+                </span>
+              )}
             </Button>
           </DialogFooter>
         </form>

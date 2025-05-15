@@ -1,7 +1,5 @@
 "use client";
 
-import { useDraggable } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
 import {
   MoreVertical,
   Download,
@@ -9,7 +7,7 @@ import {
   Trash2,
   Info,
   Copy,
-  FolderIcon as FolderMove,
+  FolderIcon as FolderCopy,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -37,6 +35,7 @@ interface FileCardProps {
   onDelete: (id: string) => void;
   onRename: (id: string) => void;
   onMove: (id: string) => void;
+  onCopy: (id: string) => void;
 }
 
 export function FileCard({
@@ -46,22 +45,8 @@ export function FileCard({
   onDelete,
   onRename,
   onMove,
+  onCopy,
 }: FileCardProps) {
-  // Setup draggable with dnd-kit
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({
-      id: file.id,
-      data: {
-        type: "file",
-        file,
-      },
-    });
-
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.2 : 1,
-  };
-
   const getFileIcon = (size: "small" | "large" = "small") => {
     const className = size === "small" ? "w-10 h-10" : "w-20 h-20";
 
@@ -106,12 +91,8 @@ export function FileCard({
   if (view === "grid") {
     return (
       <div
-        ref={setNodeRef}
-        style={style}
-        {...listeners}
-        {...attributes}
-        className="bg-card border rounded-md overflow-hidden hover:shadow-md transition-shadow cursor-pointer group touch-none"
-        onClick={() => !isDragging && onPreview(file)}
+        className="bg-card border rounded-md overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
+        onClick={() => onPreview(file)}
       >
         {getFilePreview()}
         <div className="p-3 flex items-start justify-between">
@@ -152,7 +133,12 @@ export function FileCard({
                 <Pencil className="mr-2 h-4 w-4" />
                 Rename
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCopy(file.id);
+                }}
+              >
                 <Copy className="mr-2 h-4 w-4" />
                 Make a copy
               </DropdownMenuItem>
@@ -162,7 +148,7 @@ export function FileCard({
                   onMove(file.id);
                 }}
               >
-                <FolderMove className="mr-2 h-4 w-4" />
+                <FolderCopy className="mr-2 h-4 w-4" />
                 Move to
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -183,15 +169,10 @@ export function FileCard({
     );
   }
 
-  // List view implementation
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      className="flex items-center p-2 hover:bg-accent rounded-md cursor-pointer group touch-none"
-      onClick={() => !isDragging && onPreview(file)}
+      className="flex items-center p-2 hover:bg-accent rounded-md cursor-pointer group"
+      onClick={() => onPreview(file)}
     >
       <div className="mr-3">{getFileIcon("small")}</div>
       <div className="flex-1 min-w-0">
@@ -235,7 +216,12 @@ export function FileCard({
             <Pencil className="mr-2 h-4 w-4" />
             Rename
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              onCopy(file.id);
+            }}
+          >
             <Copy className="mr-2 h-4 w-4" />
             Make a copy
           </DropdownMenuItem>
@@ -245,7 +231,7 @@ export function FileCard({
               onMove(file.id);
             }}
           >
-            <FolderMove className="mr-2 h-4 w-4" />
+            <FolderCopy className="mr-2 h-4 w-4" />
             Move to
           </DropdownMenuItem>
           <DropdownMenuSeparator />
