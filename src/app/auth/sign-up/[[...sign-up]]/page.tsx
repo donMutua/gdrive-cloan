@@ -1,6 +1,6 @@
 "use client";
 
-// import { SignUp } from "@clerk/nextjs";
+import { SignUp } from "@clerk/nextjs";
 import Image from "next/image";
 
 export default function SignUpPage() {
@@ -33,7 +33,7 @@ export default function SignUpPage() {
             </div>
           </div>
 
-          {/* <SignUp
+          <SignUp
             appearance={{
               elements: {
                 rootBox: "w-full",
@@ -60,7 +60,7 @@ export default function SignUpPage() {
             path="/auth/sign-up"
             signInUrl="/auth/sign-in"
             fallbackRedirectUrl="/dashboard"
-          /> */}
+          />
         </div>
       </div>
       <div className="hidden bg-muted lg:block">
