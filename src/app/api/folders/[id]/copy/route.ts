@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
 
 interface Params {
@@ -11,6 +11,9 @@ interface Params {
 
 // POST /api/files/[id]/copy - Copy a file to a different folder
 export async function POST(request: NextRequest, { params }: Params) {
+  // Use supabase for server-side operations
+  const supabase = getSupabaseServerClient();
+
   try {
     const { userId } = await auth();
     const { id } = params;

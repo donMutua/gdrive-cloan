@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseServerClient } from "@/lib/supabase";
 import { isValidFileName } from "@/lib/validations";
 import { logError } from "@/lib/error-logger";
 
@@ -8,6 +8,8 @@ import { logError } from "@/lib/error-logger";
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
+    // Use supabase for server-side operations
+    const supabase = getSupabaseServerClient();
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -66,6 +68,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
+    // Use supabase for server-side operations
+    const supabase = getSupabaseServerClient();
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

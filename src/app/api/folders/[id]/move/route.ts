@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
 
 interface Params {
@@ -17,6 +17,9 @@ async function isDescendantFolder(
 ): Promise<boolean> {
   if (targetFolderId === null) return false;
   if (folderId === targetFolderId) return true;
+
+  // Use supabase for server-side operations
+  const supabase = getSupabaseServerClient();
 
   // Get the target folder's parent
   const { data, error } = await supabase
@@ -37,6 +40,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   try {
     const { userId } = await auth();
     const { id } = params;
+    const supabase = getSupabaseServerClient();
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
