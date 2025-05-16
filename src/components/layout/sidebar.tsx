@@ -1,4 +1,5 @@
 "use client";
+
 import Link from "next/link";
 import {
   Home,
@@ -12,9 +13,11 @@ import {
   Upload,
   FolderPlus,
   ChevronRight,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
   Tooltip,
   TooltipContent,
@@ -28,6 +31,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useStorage } from "@/hooks/use-storage";
+import { useClerk } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 
 interface SidebarProps {
   className?: string;
@@ -40,6 +46,15 @@ export function Sidebar({
   onCreateFolder,
   onUploadFile,
 }: SidebarProps) {
+  const { storage, isLoading: isStorageLoading } = useStorage();
+  const { signOut } = useClerk();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/");
+  };
+
   return (
     <div
       className={cn(
@@ -77,7 +92,7 @@ export function Sidebar({
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link href="/">
+                <Link href="/dashboard">
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-2"
@@ -94,7 +109,7 @@ export function Sidebar({
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link href="/files">
+                <Link href="/dashboard/files">
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-2"
@@ -111,7 +126,7 @@ export function Sidebar({
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link href="/shared">
+                <Link href="/dashboard/shared">
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-2"
@@ -128,7 +143,7 @@ export function Sidebar({
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link href="/settings">
+                <Link href="/dashboard/settings">
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-2"
@@ -169,16 +184,30 @@ export function Sidebar({
           <h3 className="text-xs font-semibold text-muted-foreground">
             STORAGE
           </h3>
-          <span className="text-xs text-muted-foreground">75% full</span>
+          <span className="text-xs text-muted-foreground">
+            {isStorageLoading
+              ? "Loading..."
+              : `${storage?.storagePercentage || 0}% full`}
+          </span>
         </div>
         <div className="mb-2">
-          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-            <div className="bg-primary h-full w-3/4" />
-          </div>
+          <Progress value={storage?.storagePercentage || 0} className="h-2" />
         </div>
         <div className="text-xs text-muted-foreground">
-          7.5 GB of 10 GB used
+          {isStorageLoading
+            ? "Calculating storage..."
+            : `${storage?.formattedStorageUsed || "0 B"} of ${storage?.formattedStorageLimit || "10 GB"} used`}
         </div>
+
+        {/* Sign out button */}
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-2 mt-4"
+          onClick={handleSignOut}
+        >
+          <LogOut size={16} />
+          <span>Sign Out</span>
+        </Button>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 "use client";
+
 import {
   Search,
   Menu,
@@ -12,6 +13,7 @@ import {
   Plus,
   FolderPlus,
   Upload,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +27,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Logo } from "@/components/logo";
+import { useUserProfile } from "@/hooks/use-user-profile";
+import { useSearch } from "@/hooks/use-search";
+import { useClerk } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 interface TopbarProps {
   onToggleSidebar: () => void;
@@ -41,6 +48,31 @@ export function Topbar({
   onCreateFolder,
   onUploadFile,
 }: TopbarProps) {
+  const { getFullName, getAvatarUrl } = useUserProfile();
+  const {
+    searchQuery,
+    setSearchQuery,
+    results,
+    isLoading: isSearching,
+  } = useSearch();
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const { signOut } = useClerk();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/");
+  };
+
+  const fullName = getFullName();
+  const avatarUrl = getAvatarUrl();
+  const initials = fullName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <div className="h-16 border-b flex items-center justify-between px-4">
       <div className="flex items-center gap-4">
@@ -55,12 +87,89 @@ export function Topbar({
         <div className="md:hidden">
           <Logo className="ml-2" />
         </div>
-        <div className="relative hidden md:flex items-center">
+        <div
+          className={`relative hidden md:flex items-center transition-all ${isSearchOpen ? "w-[600px]" : "w-[300px]"}`}
+        >
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
             placeholder="Search files and folders"
-            className="pl-10 w-[300px]"
+            className="pl-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setIsSearchOpen(true)}
+            onBlur={() => setTimeout(() => setIsSearchOpen(false), 200)}
           />
+          {isSearchOpen && searchQuery.length >= 2 && (
+            <div className="absolute top-full left-0 right-0 bg-background border rounded-md shadow-md mt-1 z-50 max-h-[400px] overflow-y-auto">
+              {isSearching ? (
+                <div className="p-4 text-center">
+                  <span className="text-muted-foreground">Searching...</span>
+                </div>
+              ) : (
+                <>
+                  {results && results.total > 0 ? (
+                    <div className="p-2">
+                      {results.folders.length > 0 && (
+                        <div>
+                          <h4 className="px-2 py-1 text-xs font-semibold text-muted-foreground">
+                            FOLDERS
+                          </h4>
+                          {results.folders.map((folder) => (
+                            <div
+                              key={folder.id}
+                              className="p-2 hover:bg-accent rounded-md cursor-pointer"
+                              onClick={() => {
+                                // Navigate to folder
+                                router.push(`/dashboard/folders/${folder.id}`);
+                                setIsSearchOpen(false);
+                                setSearchQuery("");
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <FolderPlus className="h-4 w-4 text-muted-foreground" />
+                                <span>{folder.name}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {results.files.length > 0 && (
+                        <div>
+                          <h4 className="px-2 py-1 text-xs font-semibold text-muted-foreground">
+                            FILES
+                          </h4>
+                          {results.files.map((file) => (
+                            <div
+                              key={file.id}
+                              className="p-2 hover:bg-accent rounded-md cursor-pointer"
+                              onClick={() => {
+                                // Preview file
+                                router.push(`/dashboard/files/${file.id}`);
+                                setIsSearchOpen(false);
+                                setSearchQuery("");
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                <span>{file.name}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : searchQuery.length >= 2 ? (
+                    <div className="p-4 text-center">
+                      <span className="text-muted-foreground">
+                        No results found
+                      </span>
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -144,23 +253,25 @@ export function Topbar({
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-2">
               <Avatar className="h-8 w-8">
-                <AvatarImage src="/noprofilepic.png" alt="User" />
-                <AvatarFallback>JD</AvatarFallback>
+                <AvatarImage src={avatarUrl} alt={fullName} />
+                <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
               <User className="mr-2 h-4 w-4" />
               Profile
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => router.push("/dashboard/settings")}
+            >
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Logout
             </DropdownMenuItem>
