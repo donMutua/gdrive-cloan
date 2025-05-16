@@ -445,6 +445,7 @@ export default function Dashboard() {
         onConfirm={handleDeleteSuccess} // Changed
         itemName={itemToDelete?.name || ""}
         itemType={itemToDelete?.type || "file"}
+        itemId={itemToDelete?.id}
       />
 
       <FileUploadDialog

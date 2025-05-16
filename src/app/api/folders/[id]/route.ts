@@ -14,7 +14,7 @@ interface Params {
 export async function GET(request: NextRequest, { params }: Params) {
   try {
     const { userId } = await auth();
-    const { id } = params;
+    const { id } = await params;
     // Use supabase for server-side operations
     const supabase = getSupabaseServerClient();
 
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest, { params }: Params) {
 export async function PATCH(request: NextRequest, { params }: Params) {
   try {
     const { userId } = await auth();
-    const { id } = params;
+    const { id } = await params;
     // Use supabase for server-side operations
     const supabase = getSupabaseServerClient();
 
@@ -177,7 +177,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
     const { userId } = await auth();
-    const { id } = params;
+    const { id } = await params;
     // Use supabase for server-side operations
     const supabase = getSupabaseServerClient();
 

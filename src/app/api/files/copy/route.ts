@@ -13,7 +13,7 @@ interface Params {
 export async function POST(request: NextRequest, { params }: Params) {
   try {
     const { userId } = await auth();
-    const { id } = params;
+    const { id } = await params;
     // Use supabase for server-side operations
     const supabase = getSupabaseServerClient();
 
