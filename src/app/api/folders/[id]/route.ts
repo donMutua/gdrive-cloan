@@ -13,7 +13,7 @@ interface Params {
 // GET /api/folders/[id] - Get a specific folder
 export async function GET(request: NextRequest, { params }: Params) {
   try {
-    const { userId } = await await auth();
+    const { userId } = await auth();
     const { id } = params;
     // Use supabase for server-side operations
     const supabase = getSupabaseServerClient();
