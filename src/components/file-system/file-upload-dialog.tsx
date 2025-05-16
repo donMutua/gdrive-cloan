@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Upload, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useAuthGuard } from "@/hooks/use-auth-guard";
 
 interface FileUploadDialogProps {
   isOpen: boolean;
@@ -29,43 +30,130 @@ export function FileUploadDialog({
   onUpload,
   currentFolderId,
 }: FileUploadDialogProps) {
+  useAuthGuard(); // Called for its auth-guarding side effect
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
+    {}
+  );
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [errors, setErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setSelectedFiles(Array.from(e.target.files));
+      setErrors([]);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedFiles.length > 0) {
-      setIsUploading(true);
+    if (selectedFiles.length === 0) return;
 
-      // Simulate upload progress
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 5;
-        setUploadProgress(progress);
-        if (progress >= 100) {
-          clearInterval(interval);
-          onUpload(selectedFiles);
-          setIsUploading(false);
-          setSelectedFiles([]);
-          setUploadProgress(0);
-          onClose();
-        }
-      }, 100);
+    setIsUploading(true);
+    setErrors([]);
+
+    // Initialize progress for each file
+    const initialProgress: Record<string, number> = {};
+    selectedFiles.forEach((file) => {
+      initialProgress[file.name] = 0;
+    });
+    setUploadProgress(initialProgress);
+
+    try {
+      // Upload each file
+      const uploadPromises = selectedFiles.map((file) => uploadFile(file));
+      await Promise.all(uploadPromises);
+
+      // If we get here, all uploads were successful
+      onUpload(selectedFiles);
+      setSelectedFiles([]);
+      setUploadProgress({});
+      onClose();
+    } catch (error) {
+      console.error("Upload failed:", error);
+      setErrors((prev) => [
+        ...prev,
+        error instanceof Error
+          ? error.message
+          : "An unknown error occurred during upload",
+      ]);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const uploadFile = async (file: File): Promise<void> => {
+    try {
+      // Create a FormData instance
+      const formData = new FormData();
+      formData.append("file", file);
+      if (currentFolderId) {
+        formData.append("folderId", currentFolderId);
+      }
+
+      // Since fetch doesn't directly support upload progress,
+      // we'll simulate progress updates for better UX
+      const updateProgress = () => {
+        let progress = 0;
+        const interval = setInterval(() => {
+          progress += 5;
+          if (progress > 95) {
+            clearInterval(interval);
+            return;
+          }
+          setUploadProgress((prev) => ({
+            ...prev,
+            [file.name]: progress,
+          }));
+        }, 100);
+
+        return () => clearInterval(interval);
+      };
+
+      // Start progress simulation
+      const stopProgressUpdates = updateProgress();
+
+      // Perform the actual upload
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      // Stop progress simulation
+      stopProgressUpdates();
+
+      // Handle response
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to upload ${file.name}`);
+      }
+
+      // Set progress to 100% when done
+      setUploadProgress((prev) => ({
+        ...prev,
+        [file.name]: 100,
+      }));
+
+      // Wait a moment to show the completed progress
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Return the file data from the response
+      return await response.json();
+    } catch (error) {
+      setErrors((prev) => [
+        ...prev,
+        `Failed to upload ${file.name}: ${error instanceof Error ? error.message : "Unknown error"}`,
+      ]);
+      throw error;
     }
   };
 
   const handleClose = () => {
     if (!isUploading) {
       setSelectedFiles([]);
-      setUploadProgress(0);
+      setUploadProgress({});
+      setErrors([]);
       onClose();
     }
   };
@@ -116,11 +204,30 @@ export function FileUploadDialog({
 
                 {isUploading && (
                   <div className="mt-4">
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm">Uploading...</span>
-                      <span className="text-sm">{uploadProgress}%</span>
-                    </div>
-                    <Progress value={uploadProgress} className="h-2" />
+                    {Object.entries(uploadProgress).map(
+                      ([filename, progress]) => (
+                        <div key={filename} className="mb-3">
+                          <div className="flex justify-between mb-1 text-sm">
+                            <span className="truncate">{filename}</span>
+                            <span>{progress}%</span>
+                          </div>
+                          <Progress value={progress} className="h-2" />
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+
+                {errors.length > 0 && (
+                  <div className="bg-destructive/10 p-3 rounded-md mt-2">
+                    <h4 className="text-sm font-semibold text-destructive mb-1">
+                      Upload Errors:
+                    </h4>
+                    <ul className="text-xs text-destructive">
+                      {errors.map((error, i) => (
+                        <li key={i}>{error}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>
