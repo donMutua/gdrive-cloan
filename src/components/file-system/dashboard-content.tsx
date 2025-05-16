@@ -19,8 +19,8 @@ import { DragDropZone } from "@/components/file-system/drag-drop-zone";
 import { MoveCopyDialog } from "@/components/file-system/move-copy-dialog";
 import { FileSystemDndContext } from "@/components/file-system/dnd-context";
 import { DraggableItem } from "@/components/file-system/draggable-item";
-import { DroppableFolder } from "@/components/file-system/droppable-folder";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { DroppableFolder } from "./droppable-folder"; // Corrected import path if necessary, or keep as is if "@/components/..." resolves correctly
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Helper function to fetch data from the API
@@ -56,7 +56,8 @@ const fetchFileSystemAPI = async (folderId: string | null) => {
   }
 };
 
-export default function Dashboard() {
+export default function DashboardContent() {
+  // Renamed to match file name convention
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
@@ -96,6 +97,53 @@ export default function Dashboard() {
   // const fileInputRef = useRef<HTMLInputElement>(null); // To be removed if hidden input is removed
 
   const queryClient = useQueryClient();
+
+  // Mutation for moving/copying items
+  const moveCopyItemMutation = useMutation({
+    mutationFn: async ({
+      itemId,
+      itemType,
+      targetFolderId,
+      mode,
+    }: {
+      itemId: string; // ID of the item being moved/copied
+      itemType: "file" | "folder";
+      targetFolderId: string | null;
+      mode: "move" | "copy";
+    }) => {
+      let endpoint: string;
+      let method: string;
+      let body: { targetFolderId: string | null };
+
+      if (mode === "move") {
+        // Use the new dedicated move endpoints for both files and folders
+        endpoint =
+          itemType === "file"
+            ? `/api/files/${itemId}/move`
+            : `/api/folders/${itemId}/move`; // <-- Corrected endpoint
+        method = "POST"; // Both dedicated move APIs use POST
+        body = { targetFolderId };
+      } else {
+        // mode === "copy"
+        // TODO: Implement actual API call for copy if different from move
+        console.warn("Copy functionality API call is not yet implemented.");
+        // You would typically POST to a copy endpoint or POST to create a new item with copied data
+        // For now, we'll throw an error or return early for 'copy' if it's not ready
+        throw new Error("Copy mode not implemented");
+      }
+
+      const response = await fetch(endpoint, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to ${mode} ${itemType}`);
+      }
+      return response.json();
+    },
+  });
 
   // Fetching data with React Query
   const {
@@ -211,18 +259,35 @@ export default function Dashboard() {
     }
   };
 
-  const handleMoveCopy = () => {
+  // This function is called by the MoveCopyDialog's onMove prop
+  const handleMoveCopy = async (targetFolderId: string | null) => {
     if (!itemToMoveCopy) return;
-    console.warn(
-      "handleMoveCopy needs to be implemented with API calls and useMutation."
-    );
-    // This function should use useMutation to call the backend API for move/copy.
-    // On success, it should invalidate queries:
-    // queryClient.invalidateQueries({ queryKey: ['fileSystem', currentFolder] });
-    // if (targetFolderId !== currentFolder) {
-    //   queryClient.invalidateQueries({ queryKey: ['fileSystem', targetFolderId] });
-    // }
-    // For now, just closing the dialog.
+
+    // Prevent moving to the same folder if it's a move operation
+    if (itemToMoveCopy.mode === "move" && targetFolderId === currentFolder) {
+      console.log("Attempted to move to the same folder. No action taken.");
+      setIsMoveCopyDialogOpen(false);
+      return;
+    }
+
+    try {
+      await moveCopyItemMutation.mutateAsync({
+        itemId: itemToMoveCopy.id,
+        itemType: itemToMoveCopy.type,
+        targetFolderId,
+        mode: itemToMoveCopy.mode,
+      });
+      // Invalidate queries on success to refresh data
+      queryClient.invalidateQueries({
+        queryKey: ["fileSystem", currentFolder],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["fileSystem", targetFolderId],
+      });
+    } catch (error) {
+      console.error(`Error performing ${itemToMoveCopy.mode}:`, error);
+      // Optionally, display an error message to the user (e.g., using a toast notification)
+    }
     setIsMoveCopyDialogOpen(false);
   };
 
@@ -258,15 +323,32 @@ export default function Dashboard() {
             if (showDialog) {
               handleMoveCopyClick(itemId, itemType, "move");
             } else {
-              // This is for drag-and-drop move.
-              // Needs to use a mutation.
-              console.warn(
-                "Drag and drop move needs API integration with useMutation."
+              // This is for drag-and-drop move. Trigger the mutation directly.
+              moveCopyItemMutation.mutate(
+                {
+                  itemId,
+                  itemType,
+                  targetFolderId,
+                  mode: "move",
+                },
+                {
+                  onSuccess: () => {
+                    queryClient.invalidateQueries({
+                      queryKey: ["fileSystem", currentFolder],
+                    });
+                    queryClient.invalidateQueries({
+                      queryKey: ["fileSystem", targetFolderId],
+                    });
+                  },
+                  onError: (error) => {
+                    console.error(
+                      "Error moving item via drag and drop:",
+                      error
+                    );
+                    // Optionally, display an error message
+                  },
+                }
               );
-              // Example: moveItemMutation.mutate({ itemId, itemType, targetFolderId });
-              // On success of mutation:
-              // queryClient.invalidateQueries({ queryKey: ['fileSystem', currentFolder] });
-              // queryClient.invalidateQueries({ queryKey: ['fileSystem', targetFolderId] });
             }
           }}
           onPreviewFile={handleFilePreview}

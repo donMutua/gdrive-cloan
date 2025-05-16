@@ -129,31 +129,26 @@ const deleteFolder = async (folderId: string): Promise<void> => {
   }
 };
 
-// Function to move a folder
-const moveFolder = async (moveData: MoveFolderRequest): Promise<FolderType> => {
-  const supabase = getSupabaseBrowserClient();
+// Function to move a folder by calling the API endpoint
+const moveFolderApi = async (
+  moveData: MoveFolderRequest
+): Promise<FolderType> => {
+  const response = await fetch(`/api/folders/${moveData.id}/move`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ targetFolderId: moveData.targetFolderId }),
+  });
 
-  const { data, error } = await supabase
-    .from("folders")
-    .update({
-      parent_id: moveData.targetFolderId,
-      modified_at: new Date().toISOString(),
-    })
-    .eq("id", moveData.id)
-    .select("*")
-    .single();
-
-  if (error) {
-    throw new Error(`Error moving folder: ${error.message}`);
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(
+      errorData.error || `Error moving folder: ${response.statusText}`
+    );
   }
-
-  return {
-    id: data.id,
-    name: data.name,
-    createdAt: data.created_at,
-    modifiedAt: data.modified_at,
-    parentId: data.parent_id,
-  };
+  // The API returns data in the FolderType format already
+  return await response.json();
 };
 
 // Custom hook to get folders
@@ -197,7 +192,7 @@ export function useFolders(userId: string) {
 
   // Move folder mutation
   const moveFolderMutation = useMutation({
-    mutationFn: moveFolder,
+    mutationFn: moveFolderApi, // Use the new API calling function
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["folders", userId] });
     },

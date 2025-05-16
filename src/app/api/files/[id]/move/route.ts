@@ -2,44 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
+import { formatFileSize } from "@/lib/validations"; // Import for formatting file size in response
 
 interface Params {
   params: {
-    id: string;
+    id: string; // File ID
   };
 }
 
-// Function to check if a folder is a descendant of another folder
-async function isDescendantFolder(
-  folderId: string,
-  targetFolderId: string | null,
-  userId: string
-): Promise<boolean> {
-  if (targetFolderId === null) return false;
-  if (folderId === targetFolderId) return true;
-
-  const supabase = getSupabaseServerClient();
-
-  // Get the target folder's parent
-  const { data, error } = await supabase
-    .from("folders")
-    .select("parent_id")
-    .eq("id", targetFolderId)
-    .eq("user_id", userId)
-    .single();
-
-  if (error || !data || data.parent_id === null) return false;
-
-  // Recursively check if the folder is a descendant
-  return isDescendantFolder(folderId, data.parent_id, userId);
-}
-
-// POST /api/folders/[id]/move - Move a folder to a different parent
+// POST /api/files/[id]/move - Move a file to a different folder
 export async function POST(request: NextRequest, { params }: Params) {
   try {
     const { userId } = await auth();
     const { id } = await params;
-    // Use supabase for server-side operations
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
@@ -49,41 +24,47 @@ export async function POST(request: NextRequest, { params }: Params) {
     // Get request body
     const { targetFolderId } = await request.json();
 
-    // Check if the folder exists and belongs to the user
-    const { data: folderData, error: folderError } = await supabase
-      .from("folders")
+    // Check if the file exists and belongs to the user
+    const { data: fileData, error: fileError } = await supabase
+      .from("files")
       .select("*")
       .eq("id", id)
       .eq("user_id", userId)
       .single();
 
-    if (folderError) {
-      if (folderError.code === "PGRST116") {
+    if (fileError) {
+      if (fileError.code === "PGRST116") {
         return NextResponse.json(
-          { error: "Folder not found or access denied" },
+          { error: "File not found or access denied" },
           { status: 404 }
         );
       }
 
-      logError(folderError, `POST /api/folders/${id}/move`);
+      logError(fileError, `POST /api/files/${id}/move`);
       return NextResponse.json(
-        { error: "Failed to fetch folder" },
+        { error: "Failed to fetch file" },
         { status: 500 }
       );
     }
 
-    // If the target folder is the same as the current parent, do nothing
-    if (folderData.parent_id === targetFolderId) {
-      return NextResponse.json({
-        id: folderData.id,
-        name: folderData.name,
-        createdAt: folderData.created_at,
-        modifiedAt: folderData.modified_at,
-        parentId: folderData.parent_id,
-      });
+    // If the target folder is the same as the current parent folder_id, do nothing
+    if (fileData.folder_id === targetFolderId) {
+      // Return the current file data, formatted like the GET endpoint
+      const currentFile = {
+        id: fileData.id,
+        name: fileData.name,
+        type: fileData.type,
+        size: formatFileSize(fileData.size),
+        url: fileData.url,
+        createdAt: fileData.created_at,
+        modifiedAt: fileData.modified_at,
+        parentId: fileData.folder_id,
+      };
+      return NextResponse.json(currentFile);
     }
 
     // If target folder ID is provided, check if it exists and belongs to the user
+    // A file can also be moved to the root (targetFolderId = null)
     if (targetFolderId !== null) {
       const { error: targetFolderError } = await supabase
         .from("folders")
@@ -100,39 +81,39 @@ export async function POST(request: NextRequest, { params }: Params) {
           );
         }
 
-        logError(targetFolderError, `POST /api/folders/${id}/move`);
+        logError(
+          targetFolderError,
+          `POST /api/files/${id}/move (target folder check)`
+        );
         return NextResponse.json(
           { error: "Failed to fetch target folder" },
           { status: 500 }
         );
       }
-
-      // Check if the target folder is a descendant of the folder being moved
-      // This would create a circular dependency
-      const isDescendant = await isDescendantFolder(id, targetFolderId, userId);
-      if (isDescendant) {
-        return NextResponse.json(
-          { error: "Cannot move a folder into its own subdirectory" },
-          { status: 400 }
-        );
-      }
     }
 
-    // Check for duplicate folder name in the target location
-    const { data: existingFolder } = await supabase
-      .from("folders")
+    // Check for duplicate file name in the target location
+    let duplicateFileCheckQuery = supabase
+      .from("files")
       .select("id")
-      .eq("name", folderData.name)
+      .eq("name", fileData.name) // Check against the original file's name
       .eq("user_id", userId)
-      .is("parent_id", targetFolderId)
-      .neq("id", id)
-      .single();
+      .neq("id", id); // Exclude the file being moved itself
 
-    if (existingFolder) {
+    if (targetFolderId) {
+      duplicateFileCheckQuery = duplicateFileCheckQuery.eq(
+        "folder_id",
+        targetFolderId
+      );
+    } else {
+      duplicateFileCheckQuery = duplicateFileCheckQuery.is("folder_id", null);
+    }
+    const { data: existingFile } = await duplicateFileCheckQuery.maybeSingle(); // Use maybeSingle as it might not exist
+
+    if (existingFile) {
       return NextResponse.json(
         {
-          error:
-            "A folder with this name already exists in the target location",
+          error: "A file with this name already exists in the target location",
         },
         { status: 409 }
       );
@@ -140,9 +121,9 @@ export async function POST(request: NextRequest, { params }: Params) {
 
     // Move the folder
     const { data, error } = await supabase
-      .from("folders")
+      .from("files")
       .update({
-        parent_id: targetFolderId,
+        folder_id: targetFolderId,
         modified_at: new Date().toISOString(),
       })
       .eq("id", id)
@@ -151,25 +132,29 @@ export async function POST(request: NextRequest, { params }: Params) {
       .single();
 
     if (error) {
-      logError(error, `POST /api/folders/${id}/move`);
+      logError(error, `POST /api/files/${id}/move`);
       return NextResponse.json(
-        { error: "Failed to move folder" },
+        { error: "Failed to move file" },
         { status: 500 }
       );
     }
 
     // Format the response
-    const folder = {
+    const movedFile = {
       id: data.id,
       name: data.name,
+      type: data.type,
+      size: formatFileSize(data.size), // Format size
+      url: data.url,
       createdAt: data.created_at,
       modifiedAt: data.modified_at,
-      parentId: data.parent_id,
+      parentId: data.folder_id,
     };
 
-    return NextResponse.json(folder);
+    return NextResponse.json(movedFile);
   } catch (error) {
-    logError(error, `POST /api/folders/[id]/move`);
+    const fileId = params.id || "[unknown_id]";
+    logError(error, `POST /api/files/${fileId}/move (Outer Catch)`);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
