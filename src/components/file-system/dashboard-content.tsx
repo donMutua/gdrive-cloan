@@ -161,15 +161,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleCreateFolder = (name: string) => {
-    const newFolder: FolderType = {
-      id: `folder-${Date.now()}`,
-      name,
-      createdAt: new Date().toISOString(),
-      modifiedAt: new Date().toISOString(),
-      parentId: currentFolder,
-    };
-
+  const handleCreateFolder = (newFolder: FolderType) => {
     setFolders((prevFolders) => [...prevFolders, newFolder]);
   };
 
@@ -572,6 +564,7 @@ export default function Dashboard() {
         isOpen={isCreateFolderDialogOpen}
         onClose={() => setIsCreateFolderDialogOpen(false)}
         onCreate={handleCreateFolder}
+        parentId={currentFolder}
       />
 
       <DeleteDialog
