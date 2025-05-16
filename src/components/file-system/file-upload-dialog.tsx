@@ -1,8 +1,8 @@
 "use client";
 
-import type React from "react";
+import type React from "react"; // Add useEffect
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,7 @@ interface FileUploadDialogProps {
   onClose: () => void;
   onUpload: (files: File[]) => void;
   currentFolderId: string | null;
+  initialFiles?: File[]; // Added prop for pre-selected files
 }
 
 export function FileUploadDialog({
@@ -29,6 +30,7 @@ export function FileUploadDialog({
   onClose,
   onUpload,
   currentFolderId,
+  initialFiles,
 }: FileUploadDialogProps) {
   useAuthGuard(); // Called for its auth-guarding side effect
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -38,6 +40,19 @@ export function FileUploadDialog({
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [errors, setErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialFiles && initialFiles.length > 0) {
+        setSelectedFiles(initialFiles);
+      } else {
+        setSelectedFiles([]); // Reset if no initial files or dialog is simply opened
+      }
+      setUploadProgress({});
+      setErrors([]);
+      // Parent should clear initialFiles state after dialog uses them if needed
+    }
+  }, [isOpen, initialFiles]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
