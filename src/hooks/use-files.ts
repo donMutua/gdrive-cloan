@@ -92,93 +92,67 @@ const createFile = async (
   };
 };
 
-// Function to rename a file
-const renameFile = async (fileData: RenameFileRequest): Promise<FileType> => {
-  const supabase = getSupabaseBrowserClient();
+// Function to rename a file by calling the API endpoint
+const renameFileApi = async (
+  renameData: RenameFileRequest
+): Promise<FileType> => {
+  const response = await fetch(`/api/files/${renameData.id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name: renameData.name }),
+  });
 
-  const { data, error } = await supabase
-    .from("files")
-    .update({
-      name: fileData.name,
-      modified_at: new Date().toISOString(),
-    })
-    .eq("id", fileData.id)
-    .select("*")
-    .single();
-
-  if (error) {
-    throw new Error(`Error renaming file: ${error.message}`);
-  }
-
-  return {
-    id: data.id,
-    name: data.name,
-    type: data.type as FileType["type"],
-    size: formatFileSize(data.size),
-    url: data.url,
-    createdAt: data.created_at,
-    modifiedAt: data.modified_at,
-    parentId: data.folder_id,
-  };
-};
-
-// Function to delete a file
-const deleteFile = async (fileId: string): Promise<void> => {
-  const supabase = getSupabaseBrowserClient();
-
-  // First get the file to get the key for storage deletion
-  const { error: fetchError } = await supabase
-    .from("files")
-    .select("key")
-    .eq("id", fileId)
-    .single();
-
-  if (fetchError) {
+  if (!response.ok) {
+    const errorData = await response
+      .json()
+      .catch(() => ({ error: `Error renaming file: ${response.statusText}` }));
     throw new Error(
-      `Error fetching file before deletion: ${fetchError.message}`
+      errorData.error || `Error renaming file: ${response.statusText}`
     );
   }
-
-  // Delete the file record
-  const { error } = await supabase.from("files").delete().eq("id", fileId);
-
-  if (error) {
-    throw new Error(`Error deleting file: ${error.message}`);
-  }
-
-  // Note: In a real implementation, you'd also delete the file from storage
-  // This would typically be handled by a server function or API route
-  // Example: await deleteFromCloudinary(fileData.key);
+  // The API returns data in FileType format already
+  return await response.json();
 };
 
-// Function to move a file
-const moveFile = async (moveData: MoveFileRequest): Promise<FileType> => {
-  const supabase = getSupabaseBrowserClient();
+// Function to delete a file by calling the API endpoint
+const deleteFileApi = async (fileId: string): Promise<void> => {
+  const response = await fetch(`/api/files/${fileId}`, {
+    method: "DELETE",
+  });
 
-  const { data, error } = await supabase
-    .from("files")
-    .update({
-      folder_id: moveData.targetFolderId,
-      modified_at: new Date().toISOString(),
-    })
-    .eq("id", moveData.id)
-    .select("*")
-    .single();
-
-  if (error) {
-    throw new Error(`Error moving file: ${error.message}`);
+  if (!response.ok) {
+    const errorData = await response
+      .json()
+      .catch(() => ({ error: `Error deleting file: ${response.statusText}` }));
+    throw new Error(
+      errorData.error || `Error deleting file: ${response.statusText}`
+    );
   }
+  // API returns { message: "File deleted successfully" } on success, no need to parse body for void return
+};
 
-  return {
-    id: data.id,
-    name: data.name,
-    type: data.type as FileType["type"],
-    size: formatFileSize(data.size),
-    url: data.url,
-    createdAt: data.created_at,
-    modifiedAt: data.modified_at,
-    parentId: data.folder_id,
-  };
+// Function to move a file by calling the API endpoint
+const moveFileApi = async (moveData: MoveFileRequest): Promise<FileType> => {
+  const response = await fetch(`/api/files/${moveData.id}/move`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ targetFolderId: moveData.targetFolderId }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response
+      .json()
+      .catch(() => ({ error: `Error moving file: ${response.statusText}` }));
+    throw new Error(
+      errorData.error || `Error moving file: ${response.statusText}`
+    );
+  }
+  // The API returns data in FileType format already
+  return await response.json();
 };
 
 // Custom hook to get files
@@ -202,7 +176,7 @@ export function useFiles(userId: string) {
 
   // Rename file mutation
   const renameFileMutation = useMutation({
-    mutationFn: renameFile,
+    mutationFn: renameFileApi, // Use the API calling function
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files", userId] });
     },
@@ -210,7 +184,7 @@ export function useFiles(userId: string) {
 
   // Delete file mutation
   const deleteFileMutation = useMutation({
-    mutationFn: deleteFile,
+    mutationFn: deleteFileApi, // Use the API calling function
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files", userId] });
     },
@@ -218,8 +192,48 @@ export function useFiles(userId: string) {
 
   // Move file mutation
   const moveFileMutation = useMutation({
-    mutationFn: moveFile,
-    onSuccess: () => {
+    mutationFn: moveFileApi, // Use the API calling function
+    onMutate: async (movedFileData: MoveFileRequest) => {
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await queryClient.cancelQueries({ queryKey: ["files", userId] });
+
+      // Snapshot the previous value
+      const previousFiles = queryClient.getQueryData<FileType[]>([
+        "files",
+        userId,
+      ]);
+
+      // Optimistically update to the new state
+      if (previousFiles) {
+        queryClient.setQueryData<FileType[]>(["files", userId], (oldFiles) =>
+          (oldFiles || []).map((file) =>
+            file.id === movedFileData.id
+              ? {
+                  ...file,
+                  parentId: movedFileData.targetFolderId,
+                  modifiedAt: new Date().toISOString(), // Update modifiedAt optimistically
+                }
+              : file
+          )
+        );
+      }
+
+      // Return a context object with the snapshotted value
+      return { previousFiles };
+    },
+    // If the mutation fails, use the context returned from onMutate to roll back
+    onError: (err, movedFileData, context) => {
+      if (context?.previousFiles) {
+        queryClient.setQueryData<FileType[]>(
+          ["files", userId],
+          context.previousFiles
+        );
+      }
+      // Optionally, log the error or show a notification to the user
+      console.error("Error moving file, rolled back:", err);
+    },
+    // Always refetch after error or success to ensure data consistency
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["files", userId] });
     },
   });

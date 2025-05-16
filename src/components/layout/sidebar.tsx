@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useStorage } from "@/hooks/use-storage";
 import { useClerk } from "@clerk/nextjs";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
 interface SidebarProps {
@@ -48,9 +49,11 @@ export function Sidebar({
 }: SidebarProps) {
   const { storage, isLoading: isStorageLoading } = useStorage();
   const { signOut } = useClerk();
+  const queryClient = useQueryClient();
   const router = useRouter();
 
   const handleSignOut = async () => {
+    queryClient.clear(); // Clear React Query cache
     await signOut();
     router.push("/");
   };

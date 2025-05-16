@@ -56,6 +56,27 @@ const fetchFileSystemAPI = async (folderId: string | null) => {
   }
 };
 
+// New function to fetch all folders for the current user
+const fetchAllUserFoldersAPI = async (): Promise<FolderType[]> => {
+  try {
+    // Assuming /api/folders without query params returns all folders for the authenticated user
+    const response = await fetch(`/api/folders`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({
+        error: `All Folders API error: ${response.statusText}`,
+      }));
+      throw new Error(
+        errorData.error || `All Folders API error: ${response.statusText}`
+      );
+    }
+    const data = await response.json();
+    // Assuming the API returns { folders: FolderType[] } or directly FolderType[]
+    return Array.isArray(data) ? data : data.folders || [];
+  } catch (error) {
+    console.error("Error fetching all user folders:", error);
+    throw error; // Re-throw to be caught by React Query
+  }
+};
 export default function DashboardContent() {
   // Renamed to match file name convention
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -125,10 +146,10 @@ export default function DashboardContent() {
         body = { targetFolderId };
       } else {
         // mode === "copy"
-        // TODO: Implement actual API call for copy if different from move
+        // TODO: Implement actual API call for copy.
+        // This would likely be a POST to /api/files/${itemId}/copy or /api/folders/${itemId}/copy
         console.warn("Copy functionality API call is not yet implemented.");
-        // You would typically POST to a copy endpoint or POST to create a new item with copied data
-        // For now, we'll throw an error or return early for 'copy' if it's not ready
+        // For now, throw an error to indicate it's not ready.
         throw new Error("Copy mode not implemented");
       }
 
@@ -137,9 +158,19 @@ export default function DashboardContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to ${mode} ${itemType}`);
+        let errorMsg = `Failed to ${mode} ${itemType}. Status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorData.message || errorMsg;
+        } catch (e) {
+          console.error(
+            "Failed to parse error response as JSON during move/copy:",
+            e
+          );
+        }
+        throw new Error(errorMsg);
       }
       return response.json();
     },
@@ -157,6 +188,15 @@ export default function DashboardContent() {
 
   const files: FileType[] = fileSystemData?.files || [];
   const folders: FolderType[] = fileSystemData?.folders || [];
+
+  // Fetch all folders for the MoveCopyDialog
+  const {
+    data: allUserFoldersForDialog,
+    // error: allUserFoldersError, // Optionally handle loading/error states for this
+  } = useQuery<FolderType[], Error>({
+    queryKey: ["allUserFoldersForDialog"], // Unique query key
+    queryFn: fetchAllUserFoldersAPI,
+  });
 
   // Assuming API returns items already filtered by parentId (currentFolder)
   const filteredFiles = files;
@@ -284,11 +324,19 @@ export default function DashboardContent() {
       queryClient.invalidateQueries({
         queryKey: ["fileSystem", targetFolderId],
       });
+      // If a folder was moved, its parentId changes, so invalidate the list of all folders
+      if (itemToMoveCopy.type === "folder") {
+        queryClient.invalidateQueries({
+          queryKey: ["allUserFoldersForDialog"],
+        });
+      }
     } catch (error) {
       console.error(`Error performing ${itemToMoveCopy.mode}:`, error);
       // Optionally, display an error message to the user (e.g., using a toast notification)
+    } finally {
+      setIsMoveCopyDialogOpen(false);
+      setItemToMoveCopy(null); // Reset the item
     }
-    setIsMoveCopyDialogOpen(false);
   };
 
   return (
@@ -542,7 +590,7 @@ export default function DashboardContent() {
         isOpen={isMoveCopyDialogOpen}
         onClose={() => setIsMoveCopyDialogOpen(false)}
         onMove={handleMoveCopy}
-        folders={folders}
+        folders={allUserFoldersForDialog || []} // Use all fetched folders for the dialog
         currentFolderId={currentFolder}
         itemName={itemToMoveCopy?.name || ""}
         itemType={itemToMoveCopy?.type || "file"}
