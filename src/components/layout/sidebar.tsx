@@ -40,12 +40,14 @@ interface SidebarProps {
   className?: string;
   onCreateFolder: () => void;
   onUploadFile: () => void;
+  onNavItemClick?: () => void;
 }
 
 export function Sidebar({
   className,
   onCreateFolder,
   onUploadFile,
+  onNavItemClick,
 }: SidebarProps) {
   const { storage, isLoading: isStorageLoading } = useStorage();
   const { signOut } = useClerk();
@@ -95,7 +97,7 @@ export function Sidebar({
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link href="/dashboard">
+                <Link href="/dashboard" onClick={onNavItemClick}>
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-2"
@@ -112,7 +114,7 @@ export function Sidebar({
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link href="/dashboard/files">
+                <Link href="/dashboard/files" onClick={onNavItemClick}>
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-2"
@@ -129,7 +131,7 @@ export function Sidebar({
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link href="/dashboard/shared">
+                <Link href="/dashboard/shared" onClick={onNavItemClick}>
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-2"
@@ -146,7 +148,7 @@ export function Sidebar({
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link href="/dashboard/settings">
+                <Link href="/dashboard/settings" onClick={onNavItemClick}>
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-2"

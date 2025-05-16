@@ -82,7 +82,10 @@ export function Topbar({
         <Button
           variant="ghost"
           size="icon"
-          onClick={onToggleSidebar}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent this click from bubbling to DashboardContent's content click handler
+            onToggleSidebar();
+          }}
           className="md:hidden"
         >
           <Menu size={20} />

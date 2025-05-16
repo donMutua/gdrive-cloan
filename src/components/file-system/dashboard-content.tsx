@@ -79,7 +79,7 @@ const fetchAllUserFoldersAPI = async (): Promise<FolderType[]> => {
 };
 export default function DashboardContent() {
   // Renamed to match file name convention
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   // const [files, setFiles] = useState<FileType[]>([]); // Replaced by react-query
@@ -339,6 +339,24 @@ export default function DashboardContent() {
     }
   };
 
+  const handleSidebarNavItemClicked = () => {
+    // Close sidebar on nav item click if on mobile (Tailwind's md breakpoint is 768px)
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  };
+
+  const handleContentClick = () => {
+    // If sidebar is open and on a mobile screen, close it.
+    if (
+      sidebarOpen &&
+      typeof window !== "undefined" &&
+      window.innerWidth < 768
+    ) {
+      setSidebarOpen(false);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-background">
       {/* Hidden file input removed, uploads handled by FileUploadDialog */}
@@ -351,10 +369,14 @@ export default function DashboardContent() {
         <Sidebar
           onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
           onUploadFile={handleUploadFileTrigger}
+          onNavItemClick={handleSidebarNavItemClicked}
         />
       </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div
+        className="flex-1 flex flex-col overflow-hidden"
+        onClick={handleContentClick}
+      >
         <Topbar
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onViewChange={setView}
