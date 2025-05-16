@@ -19,7 +19,11 @@ import { useAuthGuard } from "@/hooks/use-auth-guard";
 interface RenameDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onRename: (newName: string) => void;
+  onRename: (
+    itemId: string,
+    newName: string,
+    itemType: "file" | "folder"
+  ) => void;
   currentName: string;
   itemType: "file" | "folder";
   itemId?: string;
@@ -66,8 +70,10 @@ export function RenameDialog({
     try {
       // Call API to rename item
       if (!itemId) {
-        // If no itemId is provided, just call the callback (for backward compatibility)
-        onRename(name.trim());
+        // This case should ideally not happen if itemId is always required for renaming
+        console.warn(
+          "RenameDialog: itemId is missing. Cannot call onRename effectively."
+        );
         onClose();
         return;
       }
@@ -93,8 +99,7 @@ export function RenameDialog({
       // Consume the response body, e.g., if it contains the updated item data (though not used here)
       await response.json();
 
-      // Call the callback with the new name
-      onRename(name.trim());
+      onRename(itemId, name.trim(), itemType);
 
       // Close dialog
       onClose();

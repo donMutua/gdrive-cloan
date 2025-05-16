@@ -24,29 +24,37 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Helper function to fetch data from the API
-async function fetchFileSystemAPI(
-  folderId: string | null
-): Promise<{ files: FileType[]; folders: FolderType[] }> {
-  // If folderId is null, fetch root. Otherwise, fetch by parentId.
+const fetchFileSystemAPI = async (folderId: string | null) => {
   const queryPath = folderId ? `?parentId=${folderId}` : "";
 
-  const filesPromise = fetch(`/api/files${queryPath}`).then((res) => {
-    if (!res.ok) throw new Error("Failed to fetch files");
-    return res.json();
-  });
-  const foldersPromise = fetch(`/api/folders${queryPath}`).then((res) => {
-    if (!res.ok) throw new Error("Failed to fetch folders");
-    return res.json();
-  });
-  const [filesData, foldersData] = await Promise.all([
-    filesPromise,
-    foldersPromise,
-  ]);
-  return {
-    files: filesData.files || [],
-    folders: foldersData.folders || [],
-  };
-}
+  try {
+    // Check for raw response format first
+    const filesRes = await fetch(`/api/files${queryPath}`);
+    const foldersRes = await fetch(`/api/folders${queryPath}`);
+
+    if (!filesRes.ok)
+      throw new Error(`Files API error: ${filesRes.statusText}`);
+    if (!foldersRes.ok)
+      throw new Error(`Folders API error: ${foldersRes.statusText}`);
+
+    const filesData = await filesRes.json();
+    const foldersData = await foldersRes.json();
+
+    // Check if we're getting array or object with files/folders property
+    const files = Array.isArray(filesData) ? filesData : filesData.files || [];
+    const folders = Array.isArray(foldersData)
+      ? foldersData
+      : foldersData.folders || [];
+
+    console.log("Fetched files:", files);
+    console.log("Fetched folders:", folders);
+
+    return { files, folders };
+  } catch (error) {
+    console.error("Error fetching data:", error);
+    throw error;
+  }
+};
 
 export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
