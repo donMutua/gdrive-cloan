@@ -1,5 +1,3 @@
-"use client";
-
 import {
   MoreVertical,
   Pencil,
@@ -17,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { FolderType } from "@/types/file-system";
 import { FolderIcon } from "./file-type-icons";
+import { useState } from "react";
 
 interface FolderCardProps {
   folder: FolderType;
@@ -37,6 +36,22 @@ export function FolderCard({
   onMove,
   onCopy,
 }: FolderCardProps) {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsLoading(true);
+
+    try {
+      // Here you would call your API to make a copy of the folder
+      onCopy(folder.id);
+    } catch (error) {
+      console.error("Error copying folder:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (view === "grid") {
     return (
       <div
@@ -71,14 +86,9 @@ export function FolderCard({
                 <Pencil className="mr-2 h-4 w-4" />
                 Rename
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCopy(folder.id);
-                }}
-              >
+              <DropdownMenuItem onClick={handleCopy} disabled={isLoading}>
                 <Copy className="mr-2 h-4 w-4" />
-                Make a copy
+                {isLoading ? "Creating copy..." : "Make a copy"}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={(e) => {
@@ -145,14 +155,9 @@ export function FolderCard({
             <Pencil className="mr-2 h-4 w-4" />
             Rename
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.stopPropagation();
-              onCopy(folder.id);
-            }}
-          >
+          <DropdownMenuItem onClick={handleCopy} disabled={isLoading}>
             <Copy className="mr-2 h-4 w-4" />
-            Make a copy
+            {isLoading ? "Creating copy..." : "Make a copy"}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={(e) => {

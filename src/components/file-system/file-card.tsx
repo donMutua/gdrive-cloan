@@ -26,7 +26,9 @@ import {
   ImageIcon,
   CodeIcon,
   GenericFileIcon,
-} from "./file-type-icons";
+} from "@/components/file-system/file-type-icons";
+import { useState } from "react";
+import Image from "next/image";
 
 interface FileCardProps {
   file: FileType;
@@ -47,24 +49,55 @@ export function FileCard({
   onMove,
   onCopy,
 }: FileCardProps) {
-  const getFileIcon = (size: "small" | "large" = "small") => {
-    const className = size === "small" ? "w-10 h-10" : "w-20 h-20";
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Render the appropriate icon based on file type
+  const renderFileIcon = (size: "small" | "large" = "small") => {
+    const sizeClass = size === "large" ? "w-20 h-20" : "w-10 h-10";
 
     switch (file.type) {
       case "image":
-        return <ImageIcon className={className} />;
+        return <ImageIcon className={sizeClass} />;
       case "document":
-        return <DocIcon className={className} />;
+        return <DocIcon className={sizeClass} />;
       case "spreadsheet":
-        return <SpreadsheetIcon className={className} />;
+        return <SpreadsheetIcon className={sizeClass} />;
       case "pdf":
-        return <PDFIcon className={className} />;
+        return <PDFIcon className={sizeClass} />;
       case "code":
-        return <CodeIcon className={className} />;
+        return <CodeIcon className={sizeClass} />;
       case "word":
-        return <WordIcon className={className} />;
+        return <WordIcon className={sizeClass} />;
       default:
-        return <GenericFileIcon className={className} />;
+        return <GenericFileIcon className={sizeClass} />;
+    }
+  };
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDownloading(true);
+
+    try {
+      // Call the download API endpoint
+      const response = await fetch(`/api/files/${file.id}/download`);
+      if (!response.ok) {
+        throw new Error(`Failed to download file: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Create a link to trigger the download
+      const a = document.createElement("a");
+      a.href = data.url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Error downloading file:", error);
+      // You could add error notification here
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -72,10 +105,11 @@ export function FileCard({
     if (file.type === "image" && file.url) {
       return (
         <div className="relative w-full pt-[100%]">
-          <img
+          <Image
             src={file.url || "/placeholder.svg"}
             alt={file.name}
-            className="absolute inset-0 w-full h-full object-cover rounded-t-md"
+            fill
+            className="object-cover rounded-t-md"
           />
         </div>
       );
@@ -83,7 +117,7 @@ export function FileCard({
 
     return (
       <div className="flex items-center justify-center h-32 bg-muted rounded-t-md">
-        {getFileIcon("large")}
+        {renderFileIcon("large")}
       </div>
     );
   };
@@ -120,9 +154,12 @@ export function FileCard({
                 <Info className="mr-2 h-4 w-4" />
                 Preview
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleDownload}
+                disabled={isDownloading}
+              >
                 <Download className="mr-2 h-4 w-4" />
-                Download
+                {isDownloading ? "Downloading..." : "Download"}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={(e) => {
@@ -174,7 +211,7 @@ export function FileCard({
       className="flex items-center p-2 hover:bg-accent rounded-md cursor-pointer group"
       onClick={() => onPreview(file)}
     >
-      <div className="mr-3">{getFileIcon("small")}</div>
+      <div className="mr-3">{renderFileIcon("small")}</div>
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate">{file.name}</div>
         <div className="text-xs text-muted-foreground">
@@ -203,9 +240,9 @@ export function FileCard({
             <Info className="mr-2 h-4 w-4" />
             Preview
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={handleDownload} disabled={isDownloading}>
             <Download className="mr-2 h-4 w-4" />
-            Download
+            {isDownloading ? "Downloading..." : "Download"}
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={(e) => {

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     // Get query parameters
     const searchParams = request.nextUrl.searchParams;
-    const folderId = searchParams.get("folderId");
+    const parentId = searchParams.get("parentId");
 
     // Build the query
     let query = supabase
@@ -27,12 +27,16 @@ export async function GET(request: NextRequest) {
       .order("name", { ascending: true });
 
     // Add folder filter if provided
-    if (folderId) {
-      if (folderId === "null") {
+    if (parentId) {
+      // If parentId is present in the query
+      if (parentId === "null") {
         query = query.is("folder_id", null);
       } else {
-        query = query.eq("folder_id", folderId);
+        query = query.eq("folder_id", parentId);
       }
+    } else {
+      // If parentId is NOT present, fetch root files
+      query = query.is("folder_id", null);
     }
 
     const { data, error } = await query;

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { FileCard } from "@/components/file-system/file-card";
@@ -12,7 +12,6 @@ import { CreateFolderDialog } from "@/components/file-system/create-folder-dialo
 import { DeleteDialog } from "@/components/file-system/delete-dialog";
 import { EmptyState } from "@/components/file-system/empty-state";
 import type { FileType, FolderType } from "@/types/file-system";
-import { generateDummyFiles, generateDummyFolders } from "@/lib/dummy-data";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FileUploadDialog } from "@/components/file-system/file-upload-dialog";
@@ -21,13 +20,40 @@ import { MoveCopyDialog } from "@/components/file-system/move-copy-dialog";
 import { FileSystemDndContext } from "@/components/file-system/dnd-context";
 import { DraggableItem } from "@/components/file-system/draggable-item";
 import { DroppableFolder } from "@/components/file-system/droppable-folder";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Helper function to fetch data from the API
+async function fetchFileSystemAPI(
+  folderId: string | null
+): Promise<{ files: FileType[]; folders: FolderType[] }> {
+  // If folderId is null, fetch root. Otherwise, fetch by parentId.
+  const queryPath = folderId ? `?parentId=${folderId}` : "";
+
+  const filesPromise = fetch(`/api/files${queryPath}`).then((res) => {
+    if (!res.ok) throw new Error("Failed to fetch files");
+    return res.json();
+  });
+  const foldersPromise = fetch(`/api/folders${queryPath}`).then((res) => {
+    if (!res.ok) throw new Error("Failed to fetch folders");
+    return res.json();
+  });
+  const [filesData, foldersData] = await Promise.all([
+    filesPromise,
+    foldersPromise,
+  ]);
+  return {
+    files: filesData.files || [],
+    folders: foldersData.folders || [],
+  };
+}
 
 export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
-  const [files, setFiles] = useState<FileType[]>([]);
-  const [folders, setFolders] = useState<FolderType[]>([]);
+  // const [files, setFiles] = useState<FileType[]>([]); // Replaced by react-query
+  // const [folders, setFolders] = useState<FolderType[]>([]); // Replaced by react-query
   const [selectedFile, setSelectedFile] = useState<FileType | null>(null);
   const [isFilePreviewOpen, setIsFilePreviewOpen] = useState(false);
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
@@ -55,18 +81,31 @@ export default function Dashboard() {
     mode: "move" | "copy";
   } | null>(null);
   const [isFileUploadDialogOpen, setIsFileUploadDialogOpen] = useState(false);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setFiles(generateDummyFiles());
-    setFolders(generateDummyFolders());
-  }, []);
-
-  const filteredFiles = files.filter((file) => file.parentId === currentFolder);
-  const filteredFolders = folders.filter(
-    (folder) => folder.parentId === currentFolder
+  const [initialFilesForUpload, setInitialFilesForUpload] = useState<File[]>(
+    []
   );
+
+  // const fileInputRef = useRef<HTMLInputElement>(null); // To be removed if hidden input is removed
+
+  const queryClient = useQueryClient();
+
+  // Fetching data with React Query
+  const {
+    data: fileSystemData,
+    isLoading: isLoadingFileSystem,
+    error: fileSystemError,
+  } = useQuery({
+    queryKey: ["fileSystem", currentFolder],
+    queryFn: () => fetchFileSystemAPI(currentFolder),
+  });
+
+  const files: FileType[] = fileSystemData?.files || [];
+  const folders: FolderType[] = fileSystemData?.folders || [];
+
+  // Assuming API returns items already filtered by parentId (currentFolder)
+  const filteredFiles = files;
+  const filteredFolders = folders;
+
   const isEmpty = filteredFiles.length === 0 && filteredFolders.length === 0;
 
   const handleOpenFolder = (folderId: string) => {
@@ -100,22 +139,10 @@ export default function Dashboard() {
     }
   };
 
-  const handleRename = (newName: string) => {
-    if (!itemToRename) return;
-
-    if (itemToRename.type === "file") {
-      setFiles((prevFiles) =>
-        prevFiles.map((file) =>
-          file.id === itemToRename.id ? { ...file, name: newName } : file
-        )
-      );
-    } else {
-      setFolders((prevFolders) =>
-        prevFolders.map((folder) =>
-          folder.id === itemToRename.id ? { ...folder, name: newName } : folder
-        )
-      );
-    }
+  // Called by RenameDialog's onRename prop after successful API call in dialog
+  const handleRenameSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["fileSystem", currentFolder] });
+    // Optionally, could also invalidate a query for the specific item if needed elsewhere
   };
 
   const handleDeleteClick = (id: string, type: "file" | "folder") => {
@@ -130,108 +157,34 @@ export default function Dashboard() {
     }
   };
 
-  const handleDelete = () => {
-    if (!itemToDelete) return;
-
-    if (itemToDelete.type === "file") {
-      setFiles((prevFiles) =>
-        prevFiles.filter((file) => file.id !== itemToDelete.id)
-      );
-    } else {
-      const folderIdsToDelete = [itemToDelete.id];
-
-      const findSubfolders = (parentId: string) => {
-        const subfolders = folders.filter((f) => f.parentId === parentId);
-        subfolders.forEach((folder) => {
-          folderIdsToDelete.push(folder.id);
-          findSubfolders(folder.id);
-        });
-      };
-
-      findSubfolders(itemToDelete.id);
-
-      setFolders((prevFolders) =>
-        prevFolders.filter((folder) => !folderIdsToDelete.includes(folder.id))
-      );
-      setFiles((prevFiles) =>
-        prevFiles.filter(
-          (file) => !folderIdsToDelete.includes(file.parentId as string)
-        )
-      );
-    }
+  // Called by DeleteDialog's onConfirm prop after successful API call in dialog
+  const handleDeleteSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["fileSystem", currentFolder] });
   };
 
-  const handleCreateFolder = (name: string) => {
-    const newFolder: FolderType = {
-      id: `folder-${Date.now()}`,
-      name,
-      createdAt: new Date().toISOString(),
-      modifiedAt: new Date().toISOString(),
-      parentId: currentFolder,
-    };
-
-    setFolders((prevFolders) => [...prevFolders, newFolder]);
+  // Called by CreateFolderDialog's onCreate prop after successful API call in dialog
+  const handleCreateFolderSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["fileSystem", currentFolder] });
   };
 
-  const handleUploadFile = () => {
-    fileInputRef.current?.click();
+  // Triggers the FileUploadDialog
+  const handleUploadFileTrigger = () => {
+    setInitialFilesForUpload([]); // Clear any previous selection for dialog
+    setIsFileUploadDialogOpen(true);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const filesArray = Array.from(e.target.files);
-      handleFilesUpload(filesArray);
-    }
+  // Called by FileUploadDialog's onUpload prop after successful API call in dialog
+  const handleFileUploadSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["fileSystem", currentFolder] });
+    // Dialog will handle its own closing and state reset.
+    // Clear initialFilesForUpload if they were used by the dialog
+    setInitialFilesForUpload([]);
   };
 
-  const handleFilesUpload = (files: File[]) => {
-    const newFiles: FileType[] = files.map((file) => {
-      let fileType: FileType["type"] = "other";
-      const fileName = file.name.toLowerCase();
-
-      if (file.type.startsWith("image/")) {
-        fileType = "image";
-      } else if (fileName.endsWith(".pdf")) {
-        fileType = "pdf";
-      } else if (
-        fileName.endsWith(".xlsx") ||
-        fileName.endsWith(".xls") ||
-        fileName.endsWith(".csv")
-      ) {
-        fileType = "spreadsheet";
-      } else if (fileName.endsWith(".docx") || fileName.endsWith(".doc")) {
-        fileType = "word";
-      } else if (fileName.endsWith(".txt") || !fileName.includes(".")) {
-        fileType = "document";
-      } else if (
-        fileName.endsWith(".js") ||
-        fileName.endsWith(".ts") ||
-        fileName.endsWith(".html") ||
-        fileName.endsWith(".css") ||
-        fileName.endsWith(".json")
-      ) {
-        fileType = "code";
-      }
-
-      const url = fileType === "image" ? "/noprofilepic.png" : undefined;
-
-      return {
-        id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        name: file.name,
-        type: fileType,
-        size: `${(file.size / 1024).toFixed(2)} KB`,
-        url,
-        createdAt: new Date().toISOString(),
-        modifiedAt: new Date().toISOString(),
-        parentId: currentFolder,
-      };
-    });
-
-    setFiles((prevFiles) => [...prevFiles, ...newFiles]);
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+  // Handler for DragDropZone to open FileUploadDialog with dropped files
+  const handleDroppedFilesForUploadDialog = (droppedFiles: File[]) => {
+    setInitialFilesForUpload(droppedFiles);
+    setIsFileUploadDialogOpen(true);
   };
 
   const handleMoveCopyClick = (
@@ -250,138 +203,24 @@ export default function Dashboard() {
     }
   };
 
-  const handleMoveCopy = (targetFolderId: string | null) => {
+  const handleMoveCopy = () => {
     if (!itemToMoveCopy) return;
-
-    if (itemToMoveCopy.mode === "move") {
-      if (itemToMoveCopy.type === "file") {
-        setFiles((prevFiles) =>
-          prevFiles.map((file) =>
-            file.id === itemToMoveCopy.id
-              ? { ...file, parentId: targetFolderId }
-              : file
-          )
-        );
-      } else {
-        const isValidMove = !isDescendantFolder(
-          itemToMoveCopy.id,
-          targetFolderId
-        );
-
-        if (isValidMove) {
-          setFolders((prevFolders) =>
-            prevFolders.map((folder) =>
-              folder.id === itemToMoveCopy.id
-                ? { ...folder, parentId: targetFolderId }
-                : folder
-            )
-          );
-        }
-      }
-    } else {
-      if (itemToMoveCopy.type === "file") {
-        const fileToCopy = files.find((f) => f.id === itemToMoveCopy.id);
-        if (fileToCopy) {
-          const newFile: FileType = {
-            ...fileToCopy,
-            id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            name: `Copy of ${fileToCopy.name}`,
-            parentId: targetFolderId,
-            createdAt: new Date().toISOString(),
-            modifiedAt: new Date().toISOString(),
-          };
-          setFiles((prevFiles) => [...prevFiles, newFile]);
-        }
-      } else {
-        const folderToCopy = folders.find((f) => f.id === itemToMoveCopy.id);
-        if (folderToCopy) {
-          const folderIdMap = new Map<string, string>();
-          const newFolderId = `folder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          folderIdMap.set(folderToCopy.id, newFolderId);
-
-          const newFolder: FolderType = {
-            ...folderToCopy,
-            id: newFolderId,
-            name: `Copy of ${folderToCopy.name}`,
-            parentId: targetFolderId,
-            createdAt: new Date().toISOString(),
-            modifiedAt: new Date().toISOString(),
-          };
-
-          const subfolders = findAllDescendantFolders(folderToCopy.id);
-          const newSubfolders: FolderType[] = subfolders.map((subfolder) => {
-            const newSubfolderId = `folder-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            folderIdMap.set(subfolder.id, newSubfolderId);
-
-            return {
-              ...subfolder,
-              id: newSubfolderId,
-              parentId:
-                subfolder.parentId === folderToCopy.id
-                  ? newFolderId
-                  : (folderIdMap.get(subfolder.parentId!) ?? null),
-              createdAt: new Date().toISOString(),
-              modifiedAt: new Date().toISOString(),
-            };
-          });
-
-          const filesToCopy = files.filter(
-            (file) =>
-              file.parentId === folderToCopy.id ||
-              subfolders.some((sf) => sf.id === file.parentId)
-          );
-
-          const newFiles: FileType[] = filesToCopy.map((file) => ({
-            ...file,
-            id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            parentId:
-              file.parentId === folderToCopy.id
-                ? newFolderId
-                : (folderIdMap.get(file.parentId!) ?? null),
-            createdAt: new Date().toISOString(),
-            modifiedAt: new Date().toISOString(),
-          }));
-
-          setFolders((prev) => [...prev, newFolder, ...newSubfolders]);
-          setFiles((prev) => [...prev, ...newFiles]);
-        }
-      }
-    }
-  };
-
-  const isDescendantFolder = (
-    folderId: string,
-    targetFolderId: string | null
-  ): boolean => {
-    if (targetFolderId === null) return false;
-    if (folderId === targetFolderId) return true;
-
-    const targetFolder = folders.find((f) => f.id === targetFolderId);
-    if (!targetFolder) return false;
-
-    return isDescendantFolder(folderId, targetFolder.parentId);
-  };
-
-  const findAllDescendantFolders = (parentId: string): FolderType[] => {
-    const directChildren = folders.filter((f) => f.parentId === parentId);
-    const descendants = [...directChildren];
-
-    directChildren.forEach((child) => {
-      descendants.push(...findAllDescendantFolders(child.id));
-    });
-
-    return descendants;
+    console.warn(
+      "handleMoveCopy needs to be implemented with API calls and useMutation."
+    );
+    // This function should use useMutation to call the backend API for move/copy.
+    // On success, it should invalidate queries:
+    // queryClient.invalidateQueries({ queryKey: ['fileSystem', currentFolder] });
+    // if (targetFolderId !== currentFolder) {
+    //   queryClient.invalidateQueries({ queryKey: ['fileSystem', targetFolderId] });
+    // }
+    // For now, just closing the dialog.
+    setIsMoveCopyDialogOpen(false);
   };
 
   return (
     <div className="flex h-screen bg-background">
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        className="hidden"
-        multiple
-      />
+      {/* Hidden file input removed, uploads handled by FileUploadDialog */}
 
       <div
         className={`fixed inset-y-0 left-0 z-50 transform ${
@@ -390,7 +229,7 @@ export default function Dashboard() {
       >
         <Sidebar
           onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
-          onUploadFile={handleUploadFile}
+          onUploadFile={handleUploadFileTrigger}
         />
       </div>
 
@@ -400,7 +239,7 @@ export default function Dashboard() {
           onViewChange={setView}
           currentView={view}
           onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
-          onUploadFile={handleUploadFile}
+          onUploadFile={handleUploadFileTrigger}
         />
 
         <FileSystemDndContext
@@ -411,27 +250,15 @@ export default function Dashboard() {
             if (showDialog) {
               handleMoveCopyClick(itemId, itemType, "move");
             } else {
-              if (itemType === "file") {
-                setFiles((prevFiles) =>
-                  prevFiles.map((file) =>
-                    file.id === itemId
-                      ? { ...file, parentId: targetFolderId }
-                      : file
-                  )
-                );
-              } else {
-                const isValidMove = !isDescendantFolder(itemId, targetFolderId);
-
-                if (isValidMove) {
-                  setFolders((prevFolders) =>
-                    prevFolders.map((folder) =>
-                      folder.id === itemId
-                        ? { ...folder, parentId: targetFolderId }
-                        : folder
-                    )
-                  );
-                }
-              }
+              // This is for drag-and-drop move.
+              // Needs to use a mutation.
+              console.warn(
+                "Drag and drop move needs API integration with useMutation."
+              );
+              // Example: moveItemMutation.mutate({ itemId, itemType, targetFolderId });
+              // On success of mutation:
+              // queryClient.invalidateQueries({ queryKey: ['fileSystem', currentFolder] });
+              // queryClient.invalidateQueries({ queryKey: ['fileSystem', targetFolderId] });
             }
           }}
           onPreviewFile={handleFilePreview}
@@ -441,7 +268,7 @@ export default function Dashboard() {
           onCopyItem={(id, type) => handleMoveCopyClick(id, type, "copy")}
         >
           <DragDropZone
-            onFilesDrop={handleFilesUpload}
+            onFilesDrop={handleDroppedFilesForUploadDialog}
             className="flex-1 overflow-y-auto"
           >
             <main className="p-4">
@@ -462,10 +289,38 @@ export default function Dashboard() {
                 ))}
               </div>
 
-              {isEmpty && (
+              {isLoadingFileSystem && (
+                <div className="mt-8">
+                  <h2 className="text-lg font-medium mb-4">
+                    <Skeleton className="h-6 w-32" />
+                  </h2>
+                  <div
+                    className={
+                      view === "grid"
+                        ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+                        : "space-y-1"
+                    }
+                  >
+                    {[...Array(5)].map((_, i) => (
+                      <Skeleton
+                        key={i}
+                        className={view === "grid" ? "h-48" : "h-16"}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {fileSystemError && (
+                <p className="text-destructive mt-4">
+                  Error loading data: {fileSystemError.message}
+                </p>
+              )}
+
+              {!isLoadingFileSystem && !fileSystemError && isEmpty && (
                 <EmptyState
                   onCreateFolder={() => setIsCreateFolderDialogOpen(true)}
-                  onUploadFile={handleUploadFile}
+                  onUploadFile={handleUploadFileTrigger}
                 />
               )}
 
@@ -563,21 +418,23 @@ export default function Dashboard() {
       <RenameDialog
         isOpen={isRenameDialogOpen}
         onClose={() => setIsRenameDialogOpen(false)}
-        onRename={handleRename}
+        onRename={handleRenameSuccess} // Changed
         currentName={itemToRename?.name || ""}
         itemType={itemToRename?.type || "file"}
+        itemId={itemToRename?.id}
       />
 
       <CreateFolderDialog
         isOpen={isCreateFolderDialogOpen}
         onClose={() => setIsCreateFolderDialogOpen(false)}
-        onCreate={handleCreateFolder}
+        onCreate={handleCreateFolderSuccess} // Changed
+        parentId={currentFolder}
       />
 
       <DeleteDialog
         isOpen={isDeleteDialogOpen}
         onClose={() => setIsDeleteDialogOpen(false)}
-        onConfirm={handleDelete}
+        onConfirm={handleDeleteSuccess} // Changed
         itemName={itemToDelete?.name || ""}
         itemType={itemToDelete?.type || "file"}
       />
@@ -585,8 +442,9 @@ export default function Dashboard() {
       <FileUploadDialog
         isOpen={isFileUploadDialogOpen}
         onClose={() => setIsFileUploadDialogOpen(false)}
-        onUpload={handleFilesUpload}
+        onUpload={handleFileUploadSuccess} // Changed
         currentFolderId={currentFolder}
+        initialFiles={initialFilesForUpload} // Added
       />
 
       <MoveCopyDialog
