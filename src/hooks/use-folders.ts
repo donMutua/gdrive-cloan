@@ -3,7 +3,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { FolderType } from "@/types/file-system";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
-import { useState } from "react";
 
 // Type for create folder request
 interface CreateFolderRequest {
@@ -129,36 +128,30 @@ const deleteFolder = async (folderId: string): Promise<void> => {
   }
 };
 
-// Function to move a folder
-const moveFolder = async (moveData: MoveFolderRequest): Promise<FolderType> => {
-  const supabase = getSupabaseBrowserClient();
+// Function to move a folder by calling the API endpoint
+const moveFolderApi = async (
+  moveData: MoveFolderRequest
+): Promise<FolderType> => {
+  const response = await fetch(`/api/folders/${moveData.id}/move`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ targetFolderId: moveData.targetFolderId }),
+  });
 
-  const { data, error } = await supabase
-    .from("folders")
-    .update({
-      parent_id: moveData.targetFolderId,
-      modified_at: new Date().toISOString(),
-    })
-    .eq("id", moveData.id)
-    .select("*")
-    .single();
-
-  if (error) {
-    throw new Error(`Error moving folder: ${error.message}`);
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(
+      errorData.error || `Error moving folder: ${response.statusText}`
+    );
   }
-
-  return {
-    id: data.id,
-    name: data.name,
-    createdAt: data.created_at,
-    modifiedAt: data.modified_at,
-    parentId: data.parent_id,
-  };
+  // The API returns data in the FolderType format already
+  return await response.json();
 };
 
 // Custom hook to get folders
 export function useFolders(userId: string) {
-  const [isCheckingDescendants, setIsCheckingDescendants] = useState(false);
   const queryClient = useQueryClient();
 
   // Get folders query
@@ -197,7 +190,7 @@ export function useFolders(userId: string) {
 
   // Move folder mutation
   const moveFolderMutation = useMutation({
-    mutationFn: moveFolder,
+    mutationFn: moveFolderApi, // Use the new API calling function
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["folders", userId] });
     },
@@ -206,21 +199,28 @@ export function useFolders(userId: string) {
   // Helper function to check if a folder is a descendant of another
   const isDescendantFolder = (
     folderId: string,
-    targetFolderId: string | null
+    potentialDescendantId: string | null
   ): boolean => {
-    setIsCheckingDescendants(true);
-    try {
-      if (targetFolderId === null) return false;
-      if (folderId === targetFolderId) return true;
+    // Check if potentialDescendantId is folderId or a descendant of folderId.
+    // folderId is the folder being moved (the potential ancestor).
+    // potentialDescendantId is the folder being considered as a destination.
+    if (potentialDescendantId === null) return false; // Root cannot be a descendant in this context.
+    if (folderId === potentialDescendantId) return true; // Moving into itself.
 
-      const folders = foldersQuery.data || [];
-      const targetFolder = folders.find((f) => f.id === targetFolderId);
-      if (!targetFolder) return false;
+    const allFolders = foldersQuery.data || [];
+    const potentialDescendantFolder = allFolders.find(
+      (f) => f.id === potentialDescendantId
+    );
 
-      return isDescendantFolder(folderId, targetFolder.parentId);
-    } finally {
-      setIsCheckingDescendants(false);
+    if (
+      !potentialDescendantFolder ||
+      potentialDescendantFolder.parentId === null
+    ) {
+      // Not found, or it's a root folder (and not folderId itself).
+      return false;
     }
+    // Recursively check if folderId is an ancestor of potentialDescendantFolder's parent.
+    return isDescendantFolder(folderId, potentialDescendantFolder.parentId);
   };
 
   return {
@@ -228,7 +228,6 @@ export function useFolders(userId: string) {
     isLoading: foldersQuery.isLoading,
     isError: foldersQuery.isError,
     error: foldersQuery.error,
-    isCheckingDescendants,
 
     // Mutations
     createFolder: createFolderMutation.mutate,

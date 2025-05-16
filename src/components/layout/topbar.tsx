@@ -30,6 +30,7 @@ import { Logo } from "@/components/logo";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useSearch } from "@/hooks/use-search";
 import { useClerk } from "@clerk/nextjs";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -57,9 +58,11 @@ export function Topbar({
   } = useSearch();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { signOut } = useClerk();
+  const queryClient = useQueryClient();
   const router = useRouter();
 
   const handleSignOut = async () => {
+    queryClient.clear(); // Clear React Query cache
     await signOut();
     router.push("/");
   };
