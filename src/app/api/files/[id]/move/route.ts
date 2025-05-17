@@ -4,14 +4,16 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
 import { formatFileSize } from "@/lib/validations";
 
-// Correct signature for dynamic route handlers
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+interface MoveFileParams {
+  params: {
+    id: string;
+  };
+}
+
+export async function POST(request: NextRequest, context: MoveFileParams) {
   try {
     const { userId } = await auth();
-    const { id } = params; // No need to await params, it's not a Promise
+    const { id } = context.params;
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
@@ -150,7 +152,7 @@ export async function POST(
 
     return NextResponse.json(movedFile);
   } catch (error) {
-    logError(error, `POST /api/files/${params.id}/move (Outer Catch)`);
+    logError(error, `POST /api/files/${context.params.id}/move (Outer Catch)`);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
