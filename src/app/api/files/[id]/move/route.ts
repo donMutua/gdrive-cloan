@@ -3,14 +3,21 @@ import { auth } from "@clerk/nextjs/server";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
 import { formatFileSize } from "@/lib/validations";
+
+// Define an interface for the route parameters to ensure type safety and consistency
+interface RouteContext {
+  params: {
+    id: string;
+  };
+}
+
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } } // Use explicit inline type for route parameters
+  { params }: RouteContext // Use the defined interface for route parameters
 ) {
   try {
     const { userId } = await auth();
-
-    const { id } = await params;
+    const { id } = params; // Correctly access id from params without await
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
@@ -115,7 +122,7 @@ export async function POST(
       );
     }
 
-    // Move the folder
+    // Move the file
     const { data, error } = await supabase
       .from("files")
       .update({
