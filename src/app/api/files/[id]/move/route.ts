@@ -4,14 +4,11 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
 import { formatFileSize } from "@/lib/validations";
 
-interface Params {
-  params: {
-    id: string;
-  };
-}
-
 // Use the exact signature expected by Next.js for App Router handlers
-export async function POST(request: NextRequest, { params }: Params) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const { userId } = await auth();
     const { id } = params; // Access id through context.params
