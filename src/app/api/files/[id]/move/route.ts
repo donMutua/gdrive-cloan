@@ -2,23 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
-import { formatFileSize } from "@/lib/validations"; // Import for formatting file size in response
-
-// Define an interface for the route segment parameters
-interface RouteContext {
-  params: {
-    id: string;
-  };
-}
-
-// POST /api/files/[id]/move - Move a file to a different folder
+import { formatFileSize } from "@/lib/validations";
 export async function POST(
   request: NextRequest,
-  { params }: RouteContext // Use the defined interface for params context
+  { params }: { params: { id: string } } // Use explicit inline type for route parameters
 ) {
   try {
     const { userId } = await auth();
-    const { id } = await params; // Correctly access id from params
+    const { id } = params;
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
@@ -159,7 +150,10 @@ export async function POST(
   } catch (error) {
     // params might not be in scope here if an error occurred before its declaration.
     // It's safer to access it from the function arguments if needed, or handle potential undefined.
-    logError(error, `POST /api/files/${fileId}/move (Outer Catch)`);
+    logError(
+      error,
+      `POST /api/files/${params?.id || "[unknown_id]"}/move (Outer Catch)`
+    );
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
