@@ -1,8 +1,5 @@
 import type { FileType, FolderType } from "@/types/file-system";
 
-// Generate a random ID
-const generateId = () => Math.random().toString(36).substring(2, 10);
-
 // Generate a random date within the last 30 days
 const generateDate = () => {
   const date = new Date();

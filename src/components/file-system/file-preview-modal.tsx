@@ -19,6 +19,7 @@ import {
   CodeIcon,
   GenericFileIcon,
 } from "./file-type-icons";
+import Image from "next/image";
 
 interface FilePreviewModalProps {
   file: FileType | null;
@@ -60,7 +61,7 @@ export function FilePreviewModal({
     if (file.type === "image" && file.url) {
       return (
         <div className="flex justify-center p-4 bg-muted/50 rounded-md">
-          <img
+          <Image
             src={file.url || "/placeholder.svg"}
             alt={file.name}
             className="max-h-[400px] max-w-full object-contain rounded-md shadow-sm"

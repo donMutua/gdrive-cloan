@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export default function LandingPage() {
@@ -144,7 +145,7 @@ export default function LandingPage() {
               ].map((item, index) => (
                 <div key={index} className="flex flex-col gap-3 pb-3">
                   <div className="w-full aspect-square rounded-xl overflow-hidden">
-                    <img
+                    <Image
                       src={item.image || "/placeholder.svg"}
                       alt={item.title}
                       className="w-full h-full object-cover"
