@@ -4,20 +4,13 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
 import { formatFileSize } from "@/lib/validations";
 
-// Define an interface for the route parameters to ensure type safety and consistency
-interface RouteContext {
-  params: {
-    id: string;
-  };
-}
-
 export async function POST(
   request: NextRequest,
-  { params }: RouteContext // Use the defined interface for route parameters
+  { params }: { params: { id: string } } // Use inline type instead of custom interface
 ) {
   try {
     const { userId } = await auth();
-    const { id } = params; // Correctly access id from params without await
+    const { id } = await params; // Correctly access id from params without await
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
