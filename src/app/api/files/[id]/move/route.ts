@@ -9,7 +9,8 @@ export async function POST(
 ) {
   try {
     const { userId } = await auth();
-    const { id } = params;
+
+    const { id } = await params;
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
