@@ -4,17 +4,14 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
 import { formatFileSize } from "@/lib/validations"; // Import for formatting file size in response
 
-interface Params {
-  params: {
-    id: string; // File ID
-  };
-}
-
 // POST /api/files/[id]/move - Move a file to a different folder
-export async function POST(request: NextRequest, { params }: Params) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } } // Use inline type for params context
+) {
   try {
     const { userId } = await auth();
-    const { id } = await params;
+    const { id } = await params; // Correctly access id from params
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
