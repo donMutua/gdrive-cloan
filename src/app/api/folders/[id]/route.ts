@@ -4,10 +4,11 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { isValidFileName } from "@/lib/validations";
 import { logError } from "@/lib/error-logger";
 
+// Updated interface to use Promise for params
 interface Params {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // GET /api/folders/[id] - Get a specific folder

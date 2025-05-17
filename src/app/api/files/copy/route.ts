@@ -3,10 +3,11 @@ import { auth } from "@clerk/nextjs/server";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
 
+// Updated interface to use Promise for params
 interface Params {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // POST /api/files/[id]/copy - Copy a file to a different folder

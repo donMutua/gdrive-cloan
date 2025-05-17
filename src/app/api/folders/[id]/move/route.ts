@@ -3,10 +3,11 @@ import { auth } from "@clerk/nextjs/server";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
 
+// Updated interface to use Promise for params
 interface Params {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // Function to check if a folder is a descendant of another folder

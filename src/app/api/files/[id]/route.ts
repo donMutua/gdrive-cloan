@@ -6,10 +6,11 @@ import { deleteFromCloudinary } from "@/lib/cloudinary";
 import { logError } from "@/lib/error-logger";
 import { formatFileSize } from "@/lib/validations";
 
+// Updated interface to use Promise for params
 interface Params {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // GET /api/files/[id] - Get a specific file
