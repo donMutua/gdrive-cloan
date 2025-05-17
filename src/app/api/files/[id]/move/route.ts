@@ -6,11 +6,11 @@ import { formatFileSize } from "@/lib/validations";
 
 export async function POST(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
-    const id = context.params.id;
+    const { id } = await params;
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
@@ -149,7 +149,9 @@ export async function POST(
 
     return NextResponse.json(movedFile);
   } catch (error) {
-    logError(error, `POST /api/files/${context.params.id}/move (Outer Catch)`);
+    // For the error handler, we need to be careful since params might not have resolved
+    const resolvedId = params.then((p) => p.id).catch(() => "[unknown_id]");
+    logError(error, `POST /api/files/${await resolvedId}/move (Outer Catch)`);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
