@@ -4,14 +4,14 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
 import { formatFileSize } from "@/lib/validations";
 
-// Use the exact signature expected by Next.js for App Router handlers
+// Correct signature for dynamic route handlers
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const { userId } = await auth();
-    const { id } = await params; // id is now directly from the destructured params
+    const { id } = params; // No need to await params, it's not a Promise
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
@@ -150,13 +150,7 @@ export async function POST(
 
     return NextResponse.json(movedFile);
   } catch (error) {
-    // params might not be in scope here if an error occurred before its declaration.
-    // It's safer to access it from the function arguments if needed, or handle potential undefined.
-    logError(
-      error,
-      // If destructuring {params}, context is not available. Use params.id.
-      `POST /api/files/${params?.id || "[unknown_id]"}/move (Outer Catch)`
-    );
+    logError(error, `POST /api/files/${params.id}/move (Outer Catch)`);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
