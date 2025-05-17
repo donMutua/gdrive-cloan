@@ -7,11 +7,11 @@ import { formatFileSize } from "@/lib/validations";
 // Use the exact signature expected by Next.js for App Router handlers
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     const { userId } = await auth();
-    const { id } = params; // Access id through context.params
+    const { id } = context.params;
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
@@ -154,7 +154,7 @@ export async function POST(
     // It's safer to access it from the function arguments if needed, or handle potential undefined.
     logError(
       error,
-      `POST /api/files/${params?.id || "[unknown_id]"}/move (Outer Catch)`
+      `POST /api/files/${context?.params?.id || "[unknown_id]"}/move (Outer Catch)`
     );
     return NextResponse.json(
       { error: "Internal server error" },
