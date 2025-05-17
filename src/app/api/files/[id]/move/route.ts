@@ -7,11 +7,11 @@ import { formatFileSize } from "@/lib/validations";
 // Use the exact signature expected by Next.js for App Router handlers
 export async function POST(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Record<string, string> }
 ) {
   try {
     const { userId } = await auth();
-    const { id } = context.params; // Access id through context.params
+    const { id } = await context.params; // Access id through context.params
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
