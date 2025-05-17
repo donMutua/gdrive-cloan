@@ -14,7 +14,7 @@ interface Params {
 export async function POST(request: NextRequest, { params }: Params) {
   try {
     const { userId } = await auth();
-    const { id } = await params; // Access id through context.params
+    const { id } = params; // Access id through context.params
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
