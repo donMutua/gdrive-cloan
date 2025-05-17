@@ -4,10 +4,17 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
 import { formatFileSize } from "@/lib/validations"; // Import for formatting file size in response
 
+// Define an interface for the route segment parameters
+interface RouteContext {
+  params: {
+    id: string;
+  };
+}
+
 // POST /api/files/[id]/move - Move a file to a different folder
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } } // Use inline type for params context
+  { params }: RouteContext // Use the defined interface for params context
 ) {
   try {
     const { userId } = await auth();
@@ -150,7 +157,8 @@ export async function POST(
 
     return NextResponse.json(movedFile);
   } catch (error) {
-    const fileId = params.id || "[unknown_id]";
+    // params might not be in scope here if an error occurred before its declaration.
+    // It's safer to access it from the function arguments if needed, or handle potential undefined.
     logError(error, `POST /api/files/${fileId}/move (Outer Catch)`);
     return NextResponse.json(
       { error: "Internal server error" },
