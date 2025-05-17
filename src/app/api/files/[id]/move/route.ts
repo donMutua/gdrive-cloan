@@ -4,16 +4,13 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
 import { formatFileSize } from "@/lib/validations";
 
-interface MoveFileParams {
-  params: {
-    id: string;
-  };
-}
-
-export async function POST(request: NextRequest, context: MoveFileParams) {
+export async function POST(
+  request: NextRequest,
+  context: { params: { id: string } }
+) {
   try {
     const { userId } = await auth();
-    const { id } = context.params;
+    const id = context.params.id;
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
