@@ -4,14 +4,17 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { logError } from "@/lib/error-logger";
 import { formatFileSize } from "@/lib/validations";
 
+interface Params {
+  params: {
+    id: string;
+  };
+}
+
 // Use the exact signature expected by Next.js for App Router handlers
-export async function POST(
-  request: NextRequest,
-  context: { params: Record<string, string> }
-) {
+export async function POST(request: NextRequest, { params }: Params) {
   try {
     const { userId } = await auth();
-    const { id } = await context.params; // Access id through context.params
+    const { id } = await params; // Access id through context.params
     const supabase = getSupabaseServerClient();
 
     if (!userId) {
@@ -154,7 +157,7 @@ export async function POST(
     // It's safer to access it from the function arguments if needed, or handle potential undefined.
     logError(
       error,
-      `POST /api/files/${context.params?.id || "[unknown_id]"}/move (Outer Catch)`
+      `POST /api/files/${params?.id || "[unknown_id]"}/move (Outer Catch)`
     );
     return NextResponse.json(
       { error: "Internal server error" },
